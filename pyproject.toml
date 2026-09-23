@@ -1,0 +1,51 @@
+[project]
+name = "facetransfer"
+version = "0.1.0"
+description = "Do edits that fool one face recognition model also fool models they were never built for?"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "torch>=2.7",
+    "torchvision>=0.22",
+    "facenet-pytorch>=2.6",
+    "onnxruntime-gpu>=1.21,<1.24",  # 1.24+ needs CUDA 13; torch cu128 ships CUDA 12 DLLs
+    "scikit-image>=0.24",
+    "numpy>=2",
+    "pandas>=2.2",
+    "matplotlib>=3.9",
+    "tqdm>=4.66",
+    "requests>=2.32",
+]
+
+[project.scripts]
+ft = "facetransfer.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=8", "ruff>=0.6"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+# facenet-pytorch 2.6 pins torch<2.3, numpy<2, pillow<10.3; the RTX 50xx (sm_120) needs torch>=2.7.
+override-dependencies = ["torch>=2.7", "torchvision>=0.22", "numpy>=2", "pillow>=10.4"]
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu128" }
+torchvision = { index = "pytorch-cu128" }
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
+[tool.ruff]
+line-length = 120
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
