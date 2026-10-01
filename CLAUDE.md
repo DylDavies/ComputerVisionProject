@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 COMS4036A research project (proposal: `CV Project Proposal.pdf`). Question: do PGD edits built against one face
 recognition model (a surrogate we train from scratch) also fool models never used while editing? Measured on LFW
 View 2 same-person pairs, swept over L-inf edit budget, against 4 test models: facenet-pytorch InceptionResnetV1
-(`vggface2`, `casia`), InsightFace ArcFace ONNX (`arcface`), and `lbph`.
+(`vggface2`, `casia`), InsightFace ArcFace (`arcface`, ONNX converted to torch), and `lbph`.
 
 ## Commands
 
@@ -32,9 +32,10 @@ The user often has other jobs training on the GPU: ask before running anything G
   `box_affines` deliberately replicates facenet-pytorch's `extract_face` (margin in output px, int truncation).
 - **Model interface (`models.py`).** `FaceModel.embed(images_float01 [B,3,H,W], affines) -> embeddings` plus
   `distance()` (cosine for deep models, chi-square for LBPH). Normalisation lives inside each model. Only
-  `TorchFaceNet` is differentiable; `ArcFace` (onnxruntime) and `LBPH` are query-only. `load_model(name, ...)` is the registry.
+  `TorchFaceNet` (InceptionResnetV1 models and ArcFace via `onnx2torch`) is differentiable, so any of them can be
+  the PGD attacker (`ft sweep --attacker`); `LBPH` is query-only. `load_model(name, ...)` is the registry.
 - **Protocol (`evaluate.py`).** Per model, per fold thresholds fitted on the other 9 folds of *clean* pairs;
-  these thresholds are then reused for edited pairs. `sweep` edits photo `a` of each same-person pair, quantises to
+  these thresholds are then reused for edited pairs. `sweep` (`--attacker`, `--seed`, `--conditions`) edits photo `a` of each same-person pair, quantises to
   uint8, and records per model/condition/strength/fold the unmatched share + SSIM → `runs/sweep.csv`.
   PGD target = the photo's own clean embedding (attacker doesn't know the comparison photo — a confirmed design decision).
 - **Surrogate (`train.py`).** InceptionResnetV1 + softmax CE on CASIA-WebFace (`data/casia/<id>/*.jpg`, 112x112
@@ -45,8 +46,8 @@ The user often has other jobs training on the GPU: ask before running anything G
 ## Gotchas
 
 - Dependency pins in `pyproject.toml` are load-bearing: torch from the `cu128` index (RTX 50xx needs torch>=2.7);
-  `[tool.uv] override-dependencies` lifts facenet-pytorch's old torch/numpy/pillow pins; `onnxruntime-gpu<1.24`
-  because newer builds need CUDA 13 and silently fall back to CPU.
+  `[tool.uv] override-dependencies` lifts facenet-pytorch's old torch/numpy/pillow pins. onnxruntime was dropped: its
+  CUDA builds lag torch's, and the torch-converted ArcFace gives identical LFW accuracy (99.85%).
 - LFW is fetched from figshare (UMass host is often down), not via torchvision's `LFWPairs`.
 - `ft validate` is the gate before any attack results are trusted: deep models must be within ~1pt of
   `PUBLISHED_ACCURACY`. Last run: vggface2 99.37%, casia 98.73% (margin 32 was best of 0/14/32/44),

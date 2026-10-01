@@ -58,38 +58,22 @@ class FaceModel:
 
 
 class TorchFaceNet(FaceModel):
-    """InceptionResnetV1 with facenet-pytorch's fixed standardisation; our surrogate or pretrained."""
+    """A differentiable embedding network: InceptionResnetV1 (surrogate, vggface2, casia) or ArcFace.
+
+    Input pixels are standardised as (x - 127.5) / std: facenet-pytorch uses 128, InsightFace 127.5.
+    """
 
     differentiable = True
 
-    def __init__(self, name: str, net: torch.nn.Module, size: int, crop: AffineFn):
+    def __init__(self, name: str, net: torch.nn.Module, size: int, crop: AffineFn, std: float = 128):
         super().__init__(name, size, crop)
         self.net = net.eval().requires_grad_(False)
-        self.net.classify = False
+        self.net.classify = False  # InceptionResnetV1: embeddings, not logits
+        self.std = std
 
     def embed(self, images, affines):
         x = warp(images, affines, self.size) * 255
-        return F.normalize(self.net((x - 127.5) / 128), dim=-1)
-
-
-class ArcFace(FaceModel):
-    """InsightFace buffalo_l recognition model (ResNet-50, ArcFace loss, WebFace600K) via onnxruntime."""
-
-    def __init__(self, onnx_path: Path, device: str):
-        import onnxruntime as ort
-
-        super().__init__("arcface", 112, landmark_crop(112))
-        providers = ["CUDAExecutionProvider"] if device.startswith("cuda") else []
-        opts = ort.SessionOptions()
-        opts.log_severity_level = 3  # the model declares output batch 1; every batched run would warn
-        self.session = ort.InferenceSession(str(onnx_path), opts, providers=[*providers, "CPUExecutionProvider"])
-        self.input = self.session.get_inputs()[0].name
-
-    @torch.no_grad()
-    def embed(self, images, affines):
-        x = (warp(images, affines, self.size) * 255 - 127.5) / 127.5
-        out = self.session.run(None, {self.input: x.float().cpu().numpy()})[0]
-        return F.normalize(torch.from_numpy(out).to(images.device), dim=-1)
+        return F.normalize(self.net((x - 127.5) / self.std), dim=-1)
 
 
 class LBPH(FaceModel):
@@ -118,6 +102,15 @@ class LBPH(FaceModel):
         return ((a - b) ** 2 / (a + b + 1e-10)).sum(-1)  # chi-square
 
 
+def arcface_net(weights_dir: Path, device: str) -> torch.nn.Module:
+    """InsightFace buffalo_l recognition model (ResNet-50, ArcFace loss, WebFace600K), converted from ONNX to torch
+    so it can also be attacked. Matches onnxruntime to ~1e-3 on embeddings of scale ~1.5."""
+    import onnx
+    from onnx2torch import convert
+
+    return convert(onnx.load(arcface_onnx(weights_dir))).to(device)
+
+
 def arcface_onnx(weights_dir: Path) -> Path:
     onnx = weights_dir / "w600k_r50.onnx"
     if not onnx.exists():
@@ -142,7 +135,7 @@ def load_model(name: str, device: str, runs_dir: Path, weights_dir: Path) -> Fac
             net = InceptionResnetV1(pretrained="vggface2" if name == "vggface2" else "casia-webface")
             return TorchFaceNet(name, net.to(device), 160, box_crop(160, margin=32))
         case "arcface":
-            return ArcFace(arcface_onnx(weights_dir), device)
+            return TorchFaceNet(name, arcface_net(weights_dir, device), 112, landmark_crop(112), std=127.5)
         case "lbph":
             return LBPH()
     raise ValueError(f"unknown model {name!r}, expected one of {MODEL_NAMES}")

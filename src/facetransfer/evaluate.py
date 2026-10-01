@@ -14,6 +14,8 @@ from facetransfer.align import load_meta
 from facetransfer.data import Pairs, load_images, load_pairs
 from facetransfer.models import PUBLISHED_ACCURACY, FaceModel, load_model
 
+CONDITIONS = ("pgd", "pgd+jpeg75", "noise", "jpeg", "blur")
+
 
 def best_threshold(dist: np.ndarray, same: np.ndarray) -> float:
     """Threshold t maximising accuracy of the rule `same iff dist <= t`."""
@@ -109,6 +111,7 @@ def sweep(
     limit: int | None,
     batch_size: int,
     seed: int,
+    conditions: tuple[str, ...] = CONDITIONS,
 ) -> pd.DataFrame:
     """Edit photo `a` of each same-person pair; record the share each model stops matching, per fold."""
     torch.manual_seed(seed)
@@ -139,6 +142,8 @@ def sweep(
                 m = fold == f
                 rows.append(
                     {
+                        "attacker": attacker,
+                        "seed": seed,
                         "model": name,
                         "condition": condition,
                         "strength": strength,
@@ -157,12 +162,16 @@ def sweep(
 
     for eps255 in tqdm(eps_list, desc="eps"):
         eps = eps255 / 255
-        edited = edit(lambda x, m, eps=eps: attack.pgd(attack_model, x, m, eps, steps=steps))
-        record("pgd", eps255, edited)
-        record("pgd+jpeg75", eps255, edit(lambda x, m: attack.jpeg(x, 75), source=edited))
-        record("noise", eps255, edit(lambda x, m, eps=eps: attack.random_noise(x, eps)))
-    for q in jpeg_qualities:
+        if {"pgd", "pgd+jpeg75"} & set(conditions):
+            edited = edit(lambda x, m, eps=eps: attack.pgd(attack_model, x, m, eps, steps=steps))
+            if "pgd" in conditions:
+                record("pgd", eps255, edited)
+            if "pgd+jpeg75" in conditions:
+                record("pgd+jpeg75", eps255, edit(lambda x, m: attack.jpeg(x, 75), source=edited))
+        if "noise" in conditions:
+            record("noise", eps255, edit(lambda x, m, eps=eps: attack.random_noise(x, eps)))
+    for q in jpeg_qualities if "jpeg" in conditions else []:
         record("jpeg", q, edit(lambda x, m, q=q: attack.jpeg(x, q)))
-    for sigma in blur_sigmas:
+    for sigma in blur_sigmas if "blur" in conditions else []:
         record("blur", sigma, edit(lambda x, m, sigma=sigma: attack.blur(x, sigma)))
     return pd.DataFrame(rows)

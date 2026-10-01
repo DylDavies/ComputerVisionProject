@@ -9,7 +9,7 @@ also stop matching the pair.
 | `surrogate` | InceptionResnetV1, softmax CE, CASIA-WebFace, trained here | — (only model used to build edits) |
 | `vggface2` | facenet-pytorch InceptionResnetV1 | training faces |
 | `casia` | facenet-pytorch InceptionResnetV1 | nothing but the seed |
-| `arcface` | InsightFace buffalo_l ResNet-50 (WebFace600K) | architecture, objective, faces |
+| `arcface` | InsightFace buffalo_l ResNet-50 (WebFace600K), ONNX converted to torch | architecture, objective, faces |
 | `lbph` | Local Binary Pattern Histograms | no deep learning |
 
 ## Setup

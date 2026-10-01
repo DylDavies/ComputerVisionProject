@@ -5,6 +5,7 @@ from pathlib import Path
 
 import torch
 
+from facetransfer.evaluate import CONDITIONS
 from facetransfer.models import MODEL_NAMES
 
 
@@ -59,6 +60,7 @@ def cmd_sweep(args) -> None:
         limit=args.limit,
         batch_size=args.batch_size,
         seed=args.seed,
+        conditions=tuple(args.conditions),
     )
     args.runs.mkdir(parents=True, exist_ok=True)
     df.to_csv(args.out or args.runs / "sweep.csv", index=False)
@@ -109,6 +111,7 @@ def main() -> None:
     p.add_argument("--limit", type=int, help="only this many same-person pairs (smoke tests)")
     p.add_argument("--batch-size", type=int, default=64)
     p.add_argument("--seed", type=int, default=0)
+    p.add_argument("--conditions", nargs="+", choices=CONDITIONS, default=list(CONDITIONS))
     p.add_argument("--out", type=Path)
     p.set_defaults(fn=cmd_sweep)
 
