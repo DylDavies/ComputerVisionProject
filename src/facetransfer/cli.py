@@ -35,7 +35,7 @@ def _workspace(args):
 def cmd_train(args) -> None:
     from facetransfer.train import train
 
-    train(args.casia, _workspace(args), args.epochs, args.batch_size, args.lr, args.workers)
+    train(args.casia, _workspace(args), args.epochs, args.batch_size, args.lr)
 
 
 def cmd_validate(args) -> None:
@@ -87,7 +87,6 @@ def main() -> None:
     p.add_argument("--epochs", type=int, default=30)
     p.add_argument("--batch-size", type=int, default=256)
     p.add_argument("--lr", type=float, default=0.1)
-    p.add_argument("--workers", type=int, default=8)
     p.set_defaults(fn=cmd_train)
 
     p = sub.add_parser("validate", help="clean LFW accuracy per model vs published")

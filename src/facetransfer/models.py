@@ -14,7 +14,7 @@ import torch.nn.functional as F
 from facenet_pytorch import InceptionResnetV1
 from skimage.feature import local_binary_pattern
 
-from facetransfer.align import box_affines, landmark_affines, warp
+from facetransfer.align import ARCFACE_TEMPLATE, CASIA_MTCNN_TEMPLATE, box_affines, landmark_affines, warp
 from facetransfer.data import download
 
 MODEL_NAMES = ("surrogate", "vggface2", "casia", "arcface", "lbph")
@@ -28,12 +28,16 @@ BUFFALO_URL = "https://github.com/deepinsight/insightface/releases/download/v0.7
 AffineFn = Callable[[dict[str, np.ndarray], tuple[int, int]], np.ndarray]
 
 
-def landmark_crop(size: int) -> AffineFn:
-    return lambda meta, hw: landmark_affines(meta["landmarks"], size)
+def landmark_crop(size: int, template: np.ndarray = ARCFACE_TEMPLATE) -> AffineFn:
+    return lambda meta, hw: landmark_affines(meta["landmarks"], size, template)
 
 
 def box_crop(size: int, margin: int) -> AffineFn:
     return lambda meta, hw: box_affines(meta["boxes"], size, margin, hw)
+
+
+# Matches the geometry of the CASIA crops the surrogate is trained on (resized 112 -> 160).
+surrogate_crop = landmark_crop(SURROGATE_SIZE, CASIA_MTCNN_TEMPLATE)
 
 
 def cosine_distance(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
@@ -133,10 +137,10 @@ def load_model(name: str, device: str, runs_dir: Path, weights_dir: Path) -> Fac
     match name:
         case "surrogate":
             net = load_surrogate_net(runs_dir / "surrogate.pt", device)
-            return TorchFaceNet(name, net, SURROGATE_SIZE, landmark_crop(SURROGATE_SIZE))
+            return TorchFaceNet(name, net, SURROGATE_SIZE, surrogate_crop)
         case "vggface2" | "casia":
             net = InceptionResnetV1(pretrained="vggface2" if name == "vggface2" else "casia-webface")
-            return TorchFaceNet(name, net.to(device), 160, box_crop(160, margin=14))
+            return TorchFaceNet(name, net.to(device), 160, box_crop(160, margin=32))
         case "arcface":
             return ArcFace(arcface_onnx(weights_dir), device)
         case "lbph":

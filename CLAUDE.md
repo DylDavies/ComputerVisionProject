@@ -48,6 +48,6 @@ The user often has other jobs training on the GPU: ask before running anything G
   because newer builds need CUDA 13 and silently fall back to CPU.
 - LFW is fetched from figshare (UMass host is often down), not via torchvision's `LFWPairs`.
 - `ft validate` is the gate before any attack results are trusted: deep models must be within ~1pt of
-  `PUBLISHED_ACCURACY`. Last run: vggface2 99.30%, casia 98.50% (slightly low, crop margin may need tuning),
+  `PUBLISHED_ACCURACY`. Last run: vggface2 99.37%, casia 98.73% (margin 32 was best of 0/14/32/44),
   arcface 99.85% (published 99.83%), lbph 67.0%; MTCNN detected all 7,701 photos.
 - `data/` and `runs/` are git-ignored (datasets, weights, outputs).

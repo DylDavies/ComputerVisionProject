@@ -18,6 +18,14 @@ ARCFACE_TEMPLATE = np.array(
     dtype=np.float32,
 )
 
+# Where *our* MTCNN finds those landmarks on the 112x112 CASIA-WebFace crops (mean of 300 random images).
+# MTCNN sits 3-7px lower than the template, so the surrogate crops LFW to this instead: LFW landmarks
+# come from the same MTCNN, so LFW faces then match the surrogate's training geometry.
+CASIA_MTCNN_TEMPLATE = np.array(
+    [[37.9, 55.3], [74.2, 55.0], [56.4, 78.5], [40.3, 96.5], [72.1, 96.2]],
+    dtype=np.float32,
+)
+
 
 def detect(images: torch.Tensor, device: str, batch_size: int = 64) -> dict[str, np.ndarray]:
     """Run MTCNN on uint8 images [N,3,H,W]; keep the face nearest the image centre.
@@ -59,9 +67,9 @@ def load_meta(path: Path) -> dict[str, np.ndarray]:
         return dict(f)
 
 
-def landmark_affines(landmarks: np.ndarray, size: int) -> np.ndarray:
-    """Similarity transforms mapping each landmark set onto the ArcFace template scaled to `size`."""
-    dst = ARCFACE_TEMPLATE * (size / 112)
+def landmark_affines(landmarks: np.ndarray, size: int, template: np.ndarray = ARCFACE_TEMPLATE) -> np.ndarray:
+    """Similarity transforms mapping each landmark set onto a 112px `template` scaled to `size`."""
+    dst = template * (size / 112)
     return np.stack([SimilarityTransform.from_estimate(lm, dst).params[:2] for lm in landmarks]).astype(np.float32)
 
 

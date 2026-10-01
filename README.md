@@ -44,7 +44,7 @@ Smoke test without the surrogate: `uv run ft sweep --attacker vggface2 --models 
 
 ## Design
 
-- **One geometry path.** MTCNN runs once on each clean photo. Every model's crop (facenet box crop at 160px,
+- **One geometry path.** MTCNN runs once on each clean photo. Every model's crop (facenet box crop at 160px with margin 32,
   ArcFace/LBPH 5-point alignment at 112px, surrogate alignment at 160px) is a 2x3 affine applied by
   `align.warp` (`grid_sample`). Edits are made on the full 250x250 photo, and each model crops it its own way;
   the surrogate's crop is differentiable, so it sits inside the PGD graph. Landmarks come from the clean photo.

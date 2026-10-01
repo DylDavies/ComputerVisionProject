@@ -1,14 +1,15 @@
 """Dataset download and loading: LFW View 2 pairs (test) and CASIA-WebFace (surrogate training)."""
 
 import tarfile
+from collections.abc import Iterator
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
 import requests
 import torch
-from torchvision import datasets, transforms
-from torchvision.io import ImageReadMode, decode_image
+from torchvision.io import ImageReadMode, decode_image, decode_jpeg, read_file
 from tqdm import tqdm
 
 # The UMass LFW host is frequently offline; these are the maintainers' figshare mirrors.
@@ -88,9 +89,45 @@ def load_images(paths: list[Path]) -> torch.Tensor:
     return torch.stack([decode_image(str(p), mode=ImageReadMode.RGB) for p in tqdm(paths, desc="decode")])
 
 
-def casia(root: Path, size: int) -> datasets.ImageFolder:
-    """CASIA-WebFace pre-aligned to the 112x112 ArcFace template, one folder per identity."""
-    if not root.is_dir():
-        raise SystemExit(f"CASIA-WebFace not found at {root}: expected {root}/<identity>/<image>.jpg (see README)")
-    tf = transforms.Compose([transforms.Resize(size), transforms.RandomHorizontalFlip(), transforms.PILToTensor()])
-    return datasets.ImageFolder(str(root), transform=tf)
+class CasiaLoader:
+    """CASIA-WebFace batches as (uint8 images [B,3,112,112] on device, labels), one folder per identity.
+
+    Images are pre-aligned to 112x112. Files are read and decoded on a thread pool, one batch ahead.
+    No DataLoader workers: on Windows each is a full process holding ~1.5GB of commit memory, which
+    exhausted the paging file. Not nvJPEG either: torchvision's GPU decode races with queued training
+    kernels on the default stream and corrupted the weights (NaN loss within a few steps).
+    """
+
+    def __init__(self, root: Path, batch_size: int, device: str, threads: int = 16):
+        if not root.is_dir():
+            raise SystemExit(f"CASIA-WebFace not found at {root}: expected {root}/<identity>/<image>.jpg (see README)")
+        self.classes = sorted(d.name for d in root.iterdir() if d.is_dir())
+        self.paths, labels = [], []
+        for label, name in enumerate(tqdm(self.classes, desc="scan")):
+            files = sorted((root / name).glob("*.jpg"))
+            self.paths += [str(p) for p in files]
+            labels += [label] * len(files)
+        self.labels = torch.tensor(labels)
+        self.batch_size, self.device = batch_size, device
+        self.readers = ThreadPoolExecutor(threads)
+        self.prefetcher = ThreadPoolExecutor(1)
+
+    def __len__(self) -> int:
+        return len(self.paths) // self.batch_size  # drop the last partial batch
+
+    @staticmethod
+    def _decode(path: str) -> torch.Tensor:
+        return decode_jpeg(read_file(path), mode=ImageReadMode.RGB)
+
+    def _load(self, idx: torch.Tensor) -> torch.Tensor:
+        return torch.stack(list(self.readers.map(self._decode, [self.paths[i] for i in idx]))).pin_memory()
+
+    def __iter__(self) -> Iterator[tuple[torch.Tensor, torch.Tensor]]:
+        order = torch.randperm(len(self.paths))
+        batches = [order[k * self.batch_size : (k + 1) * self.batch_size] for k in range(len(self))]
+        pending = self.prefetcher.submit(self._load, batches[0])
+        for k, idx in enumerate(batches):
+            images = pending.result()
+            if k + 1 < len(batches):
+                pending = self.prefetcher.submit(self._load, batches[k + 1])
+            yield images.to(self.device, non_blocking=True), self.labels[idx].to(self.device)
