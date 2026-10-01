@@ -38,6 +38,7 @@ uv run ft validate --models vggface2 casia arcface lbph   # clean accuracy vs pu
 uv run ft train       # surrogate -> runs/surrogate.pt (prints LFW accuracy each epoch)
 uv run ft sweep       # all conditions -> runs/sweep.csv
 uv run ft plot        # runs/figures/*.png
+uv run ft watch       # live training dashboard (run in a second terminal)
 ```
 
 Smoke test without the surrogate: `uv run ft sweep --attacker vggface2 --models vggface2 casia --limit 100 --eps 0 8`.

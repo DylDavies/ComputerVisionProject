@@ -59,3 +59,17 @@ def test_pgd_respects_budget_and_moves_embedding():
     assert adv.min() >= 0 and adv.max() <= 1
     moved = model.distance(model.embed(adv, m), model.embed(x, m))
     assert (moved > 0).all()
+
+
+def test_watch_parses_training_log(tmp_path):
+    from facetransfer.watch import render
+
+    log = tmp_path / "train.log"
+    log.write_text(
+        "100 images, 10 identities, 50 steps/epoch, 2 epochs\n"
+        "epoch 0 step 0/50 loss 2.300\n"
+        "epoch 0: loss 2.000 train acc 0.100 LFW 0.8000 +/- 0.0100\n"
+        "epoch 1 step 25/50 loss 1.500\n"
+    )
+    out = render(log, epochs_default=30, rate=[])
+    assert "epoch  2/2" in out and "1.500" in out and "0.8000" in out and "<- best" in out

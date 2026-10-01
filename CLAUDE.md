@@ -16,6 +16,7 @@ uv sync                                   # create/update .venv (Python 3.12)
 uv run pytest                             # all tests
 uv run pytest tests/test_core.py::test_pgd_respects_budget_and_moves_embedding   # single test
 uv run ruff check && uv run ruff format   # lint / format (line length 120)
+uv run ft watch                           # live dashboard for runs/train.log
 uv run ft prepare && uv run ft validate   # pipeline order: prepare, train, validate, sweep, plot (see README.md)
 uv run ft sweep --attacker vggface2 --models vggface2 casia --limit 100 --eps 0 8   # smoke test, no surrogate needed
 ```
@@ -50,4 +51,8 @@ The user often has other jobs training on the GPU: ask before running anything G
 - `ft validate` is the gate before any attack results are trusted: deep models must be within ~1pt of
   `PUBLISHED_ACCURACY`. Last run: vggface2 99.37%, casia 98.73% (margin 32 was best of 0/14/32/44),
   arcface 99.85% (published 99.83%), lbph 67.0%; MTCNN detected all 7,701 photos.
+- Training data loading (`CasiaLoader`) deliberately avoids DataLoader workers (each costs ~1.5GB Windows commit
+  memory; the paging file ran out) and torchvision GPU `decode_jpeg` (stream race → NaN weights). Keep it CPU-threaded.
+- The surrogate crops LFW to `CASIA_MTCNN_TEMPLATE` (where MTCNN finds landmarks on the CASIA crops), not the
+  ArcFace template; ArcFace/LBPH keep the official template.
 - `data/` and `runs/` are git-ignored (datasets, weights, outputs).

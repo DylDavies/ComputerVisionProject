@@ -28,7 +28,7 @@ def train(
     net = InceptionResnetV1(classify=True, num_classes=num_classes).to(device, memory_format=torch.channels_last)
     opt = torch.optim.SGD(net.parameters(), lr=lr, momentum=0.9, weight_decay=5e-4, nesterov=True)
     sched = torch.optim.lr_scheduler.OneCycleLR(opt, max_lr=lr, total_steps=epochs * len(loader), pct_start=0.05)
-    print(f"{len(loader.paths)} images, {num_classes} identities, {len(loader)} steps/epoch")
+    print(f"{len(loader.paths)} images, {num_classes} identities, {len(loader)} steps/epoch, {epochs} epochs")
 
     lfw_affines = torch.from_numpy(surrogate_crop(ws.meta, tuple(ws.images.shape[2:])))
     ws.runs_dir.mkdir(parents=True, exist_ok=True)

@@ -72,6 +72,12 @@ def cmd_plot(args) -> None:
     plot_all(args.csv or args.runs / "sweep.csv", args.runs / "figures")
 
 
+def cmd_watch(args) -> None:
+    from facetransfer.watch import watch
+
+    watch(args.log or args.runs / "train.log", args.interval, args.epochs)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="ft", description=__doc__)
     parser.add_argument("--data", type=Path, default=Path("data"))
@@ -109,6 +115,12 @@ def main() -> None:
     p = sub.add_parser("plot", help="figures from a sweep CSV")
     p.add_argument("--csv", type=Path)
     p.set_defaults(fn=cmd_plot)
+
+    p = sub.add_parser("watch", help="live dashboard for a training run")
+    p.add_argument("--log", type=Path, help="default: <runs>/train.log")
+    p.add_argument("--interval", type=float, default=2.0, help="refresh seconds")
+    p.add_argument("--epochs", type=int, default=30, help="total epochs, if the log header doesn't say")
+    p.set_defaults(fn=cmd_watch)
 
     args = parser.parse_args()
     args.fn(args)
