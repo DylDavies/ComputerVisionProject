@@ -76,7 +76,9 @@ class ArcFace(FaceModel):
 
         super().__init__("arcface", 112, landmark_crop(112))
         providers = ["CUDAExecutionProvider"] if device.startswith("cuda") else []
-        self.session = ort.InferenceSession(str(onnx_path), providers=[*providers, "CPUExecutionProvider"])
+        opts = ort.SessionOptions()
+        opts.log_severity_level = 3  # the model declares output batch 1; every batched run would warn
+        self.session = ort.InferenceSession(str(onnx_path), opts, providers=[*providers, "CPUExecutionProvider"])
         self.input = self.session.get_inputs()[0].name
 
     @torch.no_grad()

@@ -16,7 +16,7 @@ uv sync                                   # create/update .venv (Python 3.12)
 uv run pytest                             # all tests
 uv run pytest tests/test_core.py::test_pgd_respects_budget_and_moves_embedding   # single test
 uv run ruff check && uv run ruff format   # lint / format (line length 120)
-uv run ft prepare | train | validate | sweep | plot   # pipeline, see README.md
+uv run ft prepare && uv run ft validate   # pipeline order: prepare, train, validate, sweep, plot (see README.md)
 uv run ft sweep --attacker vggface2 --models vggface2 casia --limit 100 --eps 0 8   # smoke test, no surrogate needed
 ```
 
@@ -48,6 +48,6 @@ The user often has other jobs training on the GPU: ask before running anything G
   because newer builds need CUDA 13 and silently fall back to CPU.
 - LFW is fetched from figshare (UMass host is often down), not via torchvision's `LFWPairs`.
 - `ft validate` is the gate before any attack results are trusted: deep models must be within ~1pt of
-  `PUBLISHED_ACCURACY`. Last run: vggface2 99.30%, casia 98.50% (slightly low, crop margin may need tuning);
-  arcface hit `bad allocation` under RAM pressure and still needs verifying.
+  `PUBLISHED_ACCURACY`. Last run: vggface2 99.30%, casia 98.50% (slightly low, crop margin may need tuning),
+  arcface 99.85% (published 99.83%), lbph 67.0%; MTCNN detected all 7,701 photos.
 - `data/` and `runs/` are git-ignored (datasets, weights, outputs).

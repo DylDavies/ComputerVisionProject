@@ -90,5 +90,7 @@ def load_images(paths: list[Path]) -> torch.Tensor:
 
 def casia(root: Path, size: int) -> datasets.ImageFolder:
     """CASIA-WebFace pre-aligned to the 112x112 ArcFace template, one folder per identity."""
+    if not root.is_dir():
+        raise SystemExit(f"CASIA-WebFace not found at {root}: expected {root}/<identity>/<image>.jpg (see README)")
     tf = transforms.Compose([transforms.Resize(size), transforms.RandomHorizontalFlip(), transforms.PILToTensor()])
     return datasets.ImageFolder(str(root), transform=tf)
