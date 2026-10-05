@@ -41,6 +41,17 @@ uv run ft plot        # runs/figures/*.png
 uv run ft watch       # live training dashboard (run in a second terminal)
 ```
 
+## Report
+
+`report/` holds the LaTeX results report. All numbers are filled in from `runs/` by `report/generate.py`
+(edit the text there, not in `main.tex`, or a regeneration will overwrite it):
+
+```bash
+uv run python report/examples.py   # example edit grids -> runs/examples/ (needs the GPU, ~2 min)
+uv run python report/generate.py   # runs/ -> report/main.tex + report/figures/
+cd report && latexmk -pdf main.tex
+```
+
 Smoke test without the surrogate: `uv run ft sweep --attacker vggface2 --models vggface2 casia --limit 100 --eps 0 8`.
 
 ## Design
