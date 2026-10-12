@@ -52,6 +52,13 @@ uv run python report/generate.py   # runs/ -> report/main.tex + report/figures/
 cd report && latexmk -pdf main.tex
 ```
 
+The IEEE-format paper (`report/ieee/paper.tex`) is generated the same way, from the same `report/results.py`:
+
+```bash
+uv run python report/ieee.py
+cd report/ieee && latexmk -pdf paper.tex
+```
+
 Smoke test without the surrogate: `uv run ft sweep --attacker vggface2 --models vggface2 casia --limit 100 --eps 0 8`.
 
 ## Design

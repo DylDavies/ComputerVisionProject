@@ -14,8 +14,6 @@ import re
 import shutil
 from pathlib import Path
 
-import pandas as pd
-
 ROOT = Path(__file__).resolve().parents[1]
 RUNS = ROOT / "runs"
 REPORT = ROOT / "report"
@@ -179,119 +177,35 @@ PREAMBLE = r"""\documentclass[10pt,a4paper]{article}
 
 
 # ---------------------------------------------------------------- data
-sweep = pd.read_csv(RUNS / "sweep.csv")
-smoke = pd.read_csv(RUNS / "smoke.csv")
-validate = pd.read_csv(RUNS / "validate.csv").set_index("model")
-log = (RUNS / "train.log").read_text(errors="replace")
-epochs = [
-    tuple(map(float, m))
-    for m in re.findall(r"^epoch (\d+): loss (\S+) train acc (\S+) LFW (\S+) \+/- (\S+)", log, re.M)
-]
-header = re.search(r"(\d+) images, (\d+) identities, (\d+) steps/epoch", log).groups()
-
-MODELS = ["surrogate", "casia", "vggface2", "arcface", "lbph"]
-LABEL = {
-    "surrogate": "surrogate",
-    "casia": "casia",
-    "vggface2": "vggface2",
-    "arcface": "arcface",
-    "lbph": "lbph",
-}
-
-agg = sweep.groupby(["condition", "strength", "model"]).agg(m=("unmatched", "mean"), s=("unmatched", "std"))
-ssim = sweep[sweep.model == "surrogate"].groupby(["condition", "strength"]).ssim.mean()
-n_pairs = 3000  # all same-person pairs of View 2
-n_folds = sweep.fold.nunique()
-
-
-# Robustness: the main sweep (seed 0) plus two more seeds, surrogate as attacker.
-seeds = pd.concat(
-    [
-        sweep.assign(attacker="surrogate", seed=0),
-        *(pd.read_csv(RUNS / "sweeps" / f"surrogate_seed{k}.csv") for k in (1, 2)),
-    ]
+from results import (  # noqa: E402
+    ATTACKERS,
+    MODELS,
+    X,
+    agg,
+    arc_seed_std,
+    attacker_figure,
+    best_vs_arc,
+    cond_table,
+    epochs,
+    eps_fmt,
+    fooled,
+    header,
+    matrix_rows,
+    max_seed_std,
+    n_folds,
+    n_pairs,
+    off_diag_eps4,
+    people,
+    pg,
+    smoke,
+    spread,
+    ssim,
+    validate,
+    xssim,
 )
-spread = (
-    seeds.groupby(["condition", "strength", "model", "seed"])
-    .unmatched.mean()
-    .groupby(["condition", "strength", "model"])
-    .agg(["mean", "std"])
-)
-max_seed_std = spread["std"].groupby("condition").max()
-
-# Every differentiable model as the attacker (seed 0).
-ATTACKERS = ["surrogate", "casia", "vggface2", "arcface"]
-att = pd.concat(
-    [
-        sweep.assign(attacker="surrogate", seed=0),
-        *(pd.read_csv(RUNS / "sweeps" / f"attacker_{a}.csv") for a in ATTACKERS[1:]),
-    ]
-)
-xg = att.groupby(["condition", "strength", "attacker", "model"]).unmatched
-xm, xs = xg.mean(), xg.std()
-xssim = att[att.model == "surrogate"].groupby(["condition", "strength", "attacker"]).ssim.mean()
-
-
-def X(e, a, t, c="pgd"):
-    return xm.loc[(c, e, a, t)]
-
-
-def matrix_rows(eps, cond="pgd"):
-    rows = [["Attacker ↓ · target →"] + MODELS + ["SSIM"]]
-    hl = []
-    for i, a in enumerate(ATTACKERS):
-        rows.append(
-            [a]
-            + [f"{pct(X(eps, a, t, cond))} ± {pct(xs.loc[(cond, eps, a, t)])}" for t in MODELS]
-            + [f"{xssim.loc[(cond, eps, a)]:.3f}"]
-        )
-        hl.append((i + 1, 1 + MODELS.index(a)))
-    return rows, hl
-
-
-def attacker_figure(path):
-    import matplotlib
-
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-
-    fig, axes = plt.subplots(1, 4, figsize=(16, 3.6), sharey=True)
-    for ax, a in zip(axes, ATTACKERS, strict=True):
-        for t in MODELS:
-            g = xm.loc["pgd"].xs(a, level="attacker").xs(t, level="model")
-            ax.plot(
-                g.index, g.values, marker="o", label=t, lw=2.6 if t == a else 1.4, color=f"C{sorted(MODELS).index(t)}"
-            )
-        ax.set(title=f"attacker: {a}", xlabel="ε (/255)", xscale="symlog", ylim=(-0.02, 1.02))
-    axes[0].set_ylabel("unmatched share")
-    axes[0].legend(title="target", fontsize=8)
-    fig.tight_layout()
-    fig.savefig(path, dpi=200)
-    plt.close(fig)
-
 
 attacker_figure(RUNS / "figures" / "attacker_transfer.png")
-off_diag_eps4 = max((X(4.0, a, t), a, t) for a in ATTACKERS for t in ATTACKERS if a != t)
-arc_seed_std = spread.xs("arcface", level="model")["std"].max()
-
-
-def cond_table(cond, strength_label, fmt_strength, show_std=True, extra_ssim=True):
-    strengths = sorted(sweep[sweep.condition == cond].strength.unique())
-    head = [strength_label] + [LABEL[m] for m in MODELS] + (["SSIM"] if extra_ssim else [])
-    rows = [head]
-    for s in strengths:
-        r = [fmt_strength(s)]
-        for m in MODELS:
-            v = agg.loc[(cond, s, m)]
-            r.append(f"{pct(v.m)} ± {pct(v.s)}" if show_std else pct(v.m))
-        if extra_ssim:
-            r.append(f"{ssim.loc[(cond, s)]:.3f}")
-        rows.append(r)
-    return rows
-
-
-def eps_fmt(s):
-    return f"{s:g}/255"
+EX = RUNS / "examples"
 
 
 # ---------------------------------------------------------------- document
@@ -309,7 +223,6 @@ story += [
 ]
 
 # 1. Summary
-pg = lambda e, m: agg.loc[("pgd", e, m)].m  # noqa: E731
 story += [
     P("1. Summary", h1),
     P(
@@ -709,7 +622,6 @@ r8, h8 = matrix_rows(8.0)
 r16, h16 = matrix_rows(16.0)
 r8j, h8j = matrix_rows(8.0, "pgd+jpeg75")
 mw = [3.1 * cm] + [2.5 * cm] * 5 + [1.3 * cm]
-best_vs_arc = max(ATTACKERS[:3], key=lambda a: X(16.0, a, "arcface"))
 story += [
     P("9. Is it just our surrogate? Every deep model as the attacker", h1),
     P(
@@ -793,14 +705,6 @@ story += [
 ]
 
 # 9.2 Example edits
-EX = RUNS / "examples"
-exs = pd.read_csv(EX / "examples.csv")
-people = exs.groupby("example").person.first()
-
-
-def fooled(k, att, e):
-    c = exs[(exs.example == k) & (exs.attacker == att) & (exs.eps == e) & ~exs.matched]
-    return ", ".join(c.target) or "none"
 
 
 story += [

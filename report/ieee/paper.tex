@@ -1,0 +1,433 @@
+\documentclass[conference]{IEEEtran}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb,graphicx,booktabs,cite,url}
+\usepackage[hidelinks]{hyperref}
+
+\begin{document}
+
+\title{Do Edits That Fool One Face Recognition Model Fool Others? Measuring the Transfer of PGD Perturbations on LFW}
+
+\author{\IEEEauthorblockN{Dylan Davies (2672598), Sudhir Adjodhya (2652330) and Michael Badenhorst (2652150)}
+\IEEEauthorblockA{COMS4036A Computer Vision}}
+
+\maketitle
+
+\begin{abstract}
+Photo-cloaking tools assume that an edit built against one face recognition model will also fool models its
+author never saw. We test that assumption on the 3,000 same-person pairs of LFW View~2. We trained an
+InceptionResnetV1 surrogate from scratch on CASIA-WebFace, edited one photo in each pair with $L_\infty$ projected
+gradient descent (PGD) against it, and scored the edits on four models that played no part in building them: two
+pretrained InceptionResnetV1 networks, an ArcFace ResNet-50 and an LBPH matcher. At $\varepsilon = 4/255$ (SSIM
+0.955) the edit stops the surrogate matching 100.0\% of the pairs, but no other deep model loses more than
+4.8\%. Repeating the attack with each pretrained network as the attacker shows that our surrogate is the
+weakest source of transferable edits: at $\varepsilon = 8/255$, edits built against the VGGFace2 model break
+82.2\% of the CASIA model's pairs, against 16.2\% for our surrogate. Edits transfer well between networks that
+share an architecture, even when their training data differ, while ArcFace resists every attacker (at most
+18.8\%, at a clearly visible $\varepsilon = 16/255$). Random noise, JPEG compression and blur barely affect the
+deep models. Across three random seeds, no result has a standard deviation above 0.69 percentage points.
+\end{abstract}
+
+\begin{IEEEkeywords}
+adversarial examples, transferability, face recognition, privacy, projected gradient descent
+\end{IEEEkeywords}
+
+\section{Introduction}
+Fawkes~\cite{fawkes} and LowKey~\cite{lowkey} protect people from face recognition by adding small perturbations to
+photos before they are posted. A photo is edited once, against whatever model the tool's designers had, and must
+then defeat every system that sees it later. Radiya-Dixit \emph{et al.}~\cite{radiya} point out how weak that
+position is: the defender commits to an edit, and the recogniser can be replaced or retrained afterwards.
+
+Both tools change the photos a recogniser later learns from or searches. We ask a simpler question about a
+recogniser that is already trained. If a photo is edited
+until one model no longer recognises its owner, do models the editor never had access to also stop recognising
+them? And where some models resist while others give way, does the difference follow their architecture or the
+faces they were trained on?
+
+We answer with a controlled transfer experiment on LFW~\cite{lfw}. The four test models were chosen so that each
+differs from our surrogate in a known way. The \emph{casia} model matches its architecture, objective and training
+data, so only the random initialisation differs; \emph{vggface2} keeps the architecture but saw different faces;
+ArcFace changes all of these. A hand-crafted LBPH matcher~\cite{lbph} adds a baseline without deep learning. Our
+contributions are:
+\begin{itemize}
+\item a measurement of how often PGD edits built against a from-scratch surrogate stop four unseen models from
+matching same-person pairs, over seven edit budgets, with random-noise, JPEG and blur baselines;
+\item an attacker--target matrix in which every differentiable model takes a turn as the attacker, showing that
+shared architecture predicts transfer better than shared training data;
+\item a pipeline in which every model crops the same edited photo its own way, with each model's clean accuracy
+checked against its published figure before any attack.
+\end{itemize}
+
+\section{Related Work}
+Small, targeted input changes can flip the output of a deep network~\cite{szegedy2014}, and gradient-sign
+methods~\cite{fgsm} and PGD~\cite{madry} find them efficiently. Such perturbations often transfer between models
+trained for the same task~\cite{papernot}, which makes black-box attacks practical. Liu \emph{et
+al.}~\cite{liu2017} found that targeted perturbations rarely transfer from one model to another, and that
+optimising against an ensemble of models makes them transfer much more often.
+
+Face recognition models map an aligned face crop to an embedding and compare embeddings by distance.
+FaceNet~\cite{facenet} trained such embeddings with a triplet loss; ArcFace~\cite{arcface} adds an angular margin to
+a softmax loss. Widely used pretrained models include InceptionResnetV1~\cite{inceptionv4} networks trained on
+VGGFace2~\cite{vggface2} and CASIA-WebFace~\cite{casia}, distributed with facenet-pytorch~\cite{facenetpytorch},
+and InsightFace's ArcFace ResNet-50 trained on WebFace600K, a subset of WebFace260M~\cite{webface260m}. LFW remains
+the standard verification benchmark, although it is too small to train on~\cite{deepid2} and its subjects are
+mostly male and White~\cite{hanjain}.
+
+Fawkes and LowKey use adversarial perturbations as a privacy defence, and both depend on transfer from the model
+they optimise against to the one a third party runs. Radiya-Dixit \emph{et al.} show that recognisers trained
+later can learn to ignore such perturbations. We isolate the inference-time question and vary architecture and
+training data separately.
+
+\section{Method}
+\subsection{Threat model}
+A user edits one photo of themselves before posting it. They do not know which other photo it will later be
+compared with, so the attack pushes the edited photo away from the embedding of its own original. The edit
+succeeds against a recogniser if that recogniser no longer matches the edited photo with a different, unedited
+photo of the same person.
+
+\subsection{Models}
+Table~\ref{tab:models} lists the five models. The surrogate is an InceptionResnetV1 that we trained from scratch
+with a softmax cross-entropy loss on CASIA-WebFace, the same architecture and objective as the two facenet-pytorch
+models. The \emph{casia} model therefore differs from it only in initialisation, \emph{vggface2} in training data,
+and \emph{arcface} in architecture, objective and data. LBPH compares an $8\times8$ grid of uniform local binary
+pattern histograms with the chi-square distance.
+
+\begin{table}[t]
+\centering
+\caption{Models. ``5-pt'' is five-landmark alignment; ``box'' is an MTCNN box crop with a 32-pixel margin.}
+\label{tab:models}
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{lllll}
+\toprule
+Model & Architecture & Training data & Loss & Input \\
+\midrule
+surrogate & InceptionResnetV1 & CASIA-WebFace (ours) & softmax & 5-pt, 160$^2$ \\
+casia & InceptionResnetV1 & CASIA-WebFace & softmax & box, 160$^2$ \\
+vggface2 & InceptionResnetV1 & VGGFace2 & softmax & box, 160$^2$ \\
+arcface & ResNet-50 & WebFace600K & ArcFace & 5-pt, 112$^2$ \\
+lbph & LBP histograms & none & none & 5-pt, 112$^2$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Preprocessing}
+Each model expects faces cropped and aligned its own way. A wrong crop raises no error; it only lowers accuracy,
+which is easy to miss. We run MTCNN~\cite{mtcnn} once on every LFW photo (it found a face in all 7,701) and express each model's crop
+as a $2\times3$ affine map from the $250\times250$ photo to the model input: a box crop at $160\times160$ for the
+facenet models, the standard InsightFace five-point alignment at $112\times112$ for ArcFace and LBPH, and a
+five-point alignment at $160\times160$ for the surrogate, using the landmark positions MTCNN finds on its CASIA
+training crops. The crops are applied with a differentiable bilinear warp, so the surrogate's own cropping sits
+inside the attack. Every edit is made on the full photo, and every model crops the same edited photo.
+
+\subsection{Verification protocol}
+A pair is accepted as the same person when the distance between embeddings (cosine for the deep models,
+chi-square for LBPH) is below a threshold. Following the LFW protocol, each model's threshold for a fold is fitted
+on the clean pairs of the other nine folds. We keep these clean thresholds fixed when scoring edited photos, so
+$\varepsilon = 0$ gives each model's ordinary error rate.
+
+\subsection{Attack}
+For a photo $x$ with surrogate embedding $f(x)$, PGD~\cite{madry} starts from $x$ plus uniform noise in
+$[-\varepsilon, \varepsilon]$ and repeats
+\begin{equation}
+x^{t+1} = \Pi_{\varepsilon}\!\left(x^{t} + \alpha \,\mathrm{sign}\, \nabla_{x}\, d\big(f(x^{t}), f(x)\big)\right),
+\end{equation}
+where $d$ is the cosine distance and $\Pi_\varepsilon$ projects onto the $L_\infty$ ball of radius $\varepsilon$
+around $x$ and onto valid pixel values. We use 20 steps with $\alpha = 2.5\varepsilon/20$, and round the result to
+8 bits before scoring, as a posted photo would be. We sweep $\varepsilon \in \{0, 0.5, 1, 2, 4, 8, 16\}/255$.
+
+\subsection{Baselines and metrics}
+Random sign noise of size $\varepsilon$ on every pixel tests whether the optimisation matters. Saving the edited
+photo as JPEG at quality 75 tests whether ordinary recompression removes the edit. JPEG compression (quality 90 to
+30) and Gaussian blur ($\sigma$ = 0.5 to 3 pixels) of the clean photo are edits any user could make for free.
+
+Our measure is the \emph{unmatched share}: the fraction of the 3,000 same-person pairs that a model no longer
+accepts after photo $a$ of each pair is edited, averaged over the ten folds. SSIM~\cite{ssim} between the edited
+and original photo measures how visible the edit is.
+
+\section{Experimental Setup}
+LFW View~2 holds 6,000 fixed pairs in ten folds. We use them unchanged, including the six pairs its maintainers
+list as mislabelled. The surrogate was trained for 30 epochs on CASIA-WebFace (490,623 aligned images of
+10,572 people) with SGD (Nesterov momentum 0.9, weight decay $5\times10^{-4}$), a one-cycle schedule peaking at a
+learning rate of 0.1, batch size 256, bf16 mixed precision and random horizontal flips. Training took about
+1.5~hours on one RTX~5070~Ti. The final epoch reached 98.12\% clean LFW accuracy (best 98.32\%, at epoch
+27), against 99.05\% published for the pretrained \emph{casia} model trained on the same data.
+
+Because a misaligned crop lowers accuracy without any error, we checked every model against its published LFW
+accuracy before attacking (Table~\ref{tab:valid}). We chose the facenet crop margin from $\{0, 14, 32, 44\}$
+pixels by clean accuracy; 32 was best for both models. The three pretrained deep models land within 0.32
+points of their published figures. For the cross-attacker experiments we converted ArcFace from ONNX to PyTorch
+with onnx2torch so that gradients flow through it; the converted model reproduces the original's accuracy.
+
+\begin{table}[t]
+\centering
+\caption{Clean LFW View 2 accuracy (mean $\pm$ std over 10 folds) against published figures.}
+\label{tab:valid}
+\footnotesize
+\begin{tabular}{lrrr}
+\toprule
+Model & Ours & Published & Gap (pts) \\
+\midrule
+surrogate & 98.12\% $\pm$ 0.63\% & -- & -- \\
+casia & 98.73\% $\pm$ 0.64\% & 99.05\% & -0.32 \\
+vggface2 & 99.37\% $\pm$ 0.33\% & 99.65\% & -0.28 \\
+arcface & 99.85\% $\pm$ 0.17\% & 99.83\% & +0.02 \\
+lbph & 67.03\% $\pm$ 1.03\% & -- & -- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Results}
+\subsection{Transfer from the surrogate}
+Table~\ref{tab:main} and Fig.~\ref{fig:main} give the main result. The surrogate stops matching quickly: from
+2.6\% of pairs with no edit to 84.8\% at $\varepsilon = 2/255$, where the edit is essentially invisible (SSIM
+0.987), and 100.0\% from $4/255$ up. The other deep models hardly move at these budgets. At $4/255$ \emph{casia}
+goes from 1.8\% to 4.8\%, \emph{vggface2} from 0.8\% to 1.4\% and ArcFace from 0.3\% to 0.4\%. Substantial
+transfer appears only at $16/255$, where SSIM has fallen to 0.660 and the edit is plain to see. There
+\emph{casia} loses 51.2\% of pairs, \emph{vggface2} 12.0\% and ArcFace 0.9\%.
+
+With our surrogate as the attacker, shared training data looks decisive: \emph{casia}, trained on the same faces,
+loses 4.3 times as many pairs at $16/255$ as \emph{vggface2}. Section~\ref{sec:cross} shows that this reading
+does not survive a change of attacker.
+
+\begin{table*}[t]
+\centering
+\caption{Unmatched share of same-person pairs (mean $\pm$ std over folds) after PGD against the surrogate.
+$\varepsilon = 0$ is each model's baseline error. SSIM is between edited and original photo.}
+\label{tab:main}
+\footnotesize
+\begin{tabular}{lrrrrrr}
+\toprule
+$\varepsilon$ & surrogate & casia & vggface2 & arcface & lbph & SSIM \\
+\midrule
+0/255 & 2.6\% $\pm$ 1.5\% & 1.8\% $\pm$ 1.4\% & 0.8\% $\pm$ 0.7\% & 0.3\% $\pm$ 0.4\% & 47.2\% $\pm$ 2.1\% & 1.000 \\
+0.5/255 & 6.1\% $\pm$ 2.1\% & 1.9\% $\pm$ 1.4\% & 0.8\% $\pm$ 0.7\% & 0.3\% $\pm$ 0.4\% & 45.4\% $\pm$ 1.8\% & 0.999 \\
+1/255 & 20.6\% $\pm$ 4.5\% & 2.1\% $\pm$ 1.4\% & 0.8\% $\pm$ 0.7\% & 0.3\% $\pm$ 0.4\% & 42.8\% $\pm$ 1.9\% & 0.996 \\
+2/255 & 84.8\% $\pm$ 2.9\% & 2.6\% $\pm$ 1.7\% & 1.0\% $\pm$ 0.8\% & 0.3\% $\pm$ 0.4\% & 40.4\% $\pm$ 2.1\% & 0.987 \\
+4/255 & 100.0\% $\pm$ 0.0\% & 4.8\% $\pm$ 2.0\% & 1.4\% $\pm$ 0.9\% & 0.4\% $\pm$ 0.5\% & 39.0\% $\pm$ 2.2\% & 0.955 \\
+8/255 & 100.0\% $\pm$ 0.0\% & 16.2\% $\pm$ 2.6\% & 3.3\% $\pm$ 1.6\% & 0.5\% $\pm$ 0.5\% & 44.5\% $\pm$ 2.8\% & 0.860 \\
+16/255 & 100.0\% $\pm$ 0.0\% & 51.2\% $\pm$ 4.1\% & 12.0\% $\pm$ 2.6\% & 0.9\% $\pm$ 0.7\% & 65.4\% $\pm$ 2.1\% & 0.660 \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{figures/main_result.png}
+\caption{Unmatched share against edit budget for PGD against the surrogate, one line per model (error bars: std
+over folds). Dashed: SSIM (right axis).}
+\label{fig:main}
+\end{figure}
+
+\subsection{Baselines}
+Random noise does little even though it is more visible than PGD at the same budget (Table~\ref{tab:base},
+Fig.~\ref{fig:compare}). At $\varepsilon = 16/255$ (SSIM 0.462) it moves the surrogate to only 7.4\% and
+\emph{casia} to 4.3\%. JPEG at quality 75 after editing weakens small edits, cutting the surrogate's unmatched
+share at $2/255$ from 84.8\% to 39.1\%, but edits of $4/255$ and above survive it (97.1\% at $4/255$). Free edits
+barely register: JPEG at quality 30 leaves the surrogate at 3.4\%, and only strong blur ($\sigma = 3$ pixels, SSIM
+0.790) has an effect, 22.2\% for the surrogate and 16.6\% for \emph{casia}.
+
+\begin{table}[t]
+\centering
+\caption{Unmatched share under baseline edits (S surrogate, C casia, V vggface2, A arcface, L lbph).}
+\label{tab:base}
+\scriptsize
+\setlength{\tabcolsep}{2.5pt}
+\begin{tabular}{llrrrrrr}
+\toprule
+Edit & Strength & S & C & V & A & L & SSIM \\
+\midrule
+Noise & $\varepsilon$ = 8/255 & 3.6\% & 2.4\% & 0.9\% & 0.3\% & 65.4\% & 0.713 \\
+Noise & $\varepsilon$ = 16/255 & 7.4\% & 4.3\% & 1.4\% & 0.4\% & 90.1\% & 0.462 \\
+PGD + JPEG 75 & $\varepsilon$ = 2/255 & 39.1\% & 2.7\% & 0.9\% & 0.3\% & 39.6\% & 0.968 \\
+PGD + JPEG 75 & $\varepsilon$ = 4/255 & 97.1\% & 4.5\% & 1.3\% & 0.4\% & 36.5\% & 0.960 \\
+PGD + JPEG 75 & $\varepsilon$ = 16/255 & 100.0\% & 43.2\% & 10.1\% & 0.8\% & 48.5\% & 0.820 \\
+JPEG & q = 50 & 2.8\% & 1.9\% & 0.8\% & 0.3\% & 49.2\% & 0.952 \\
+JPEG & q = 30 & 3.4\% & 2.0\% & 0.8\% & 0.3\% & 54.9\% & 0.927 \\
+Blur & $\sigma$ = 2 & 7.9\% & 5.2\% & 2.1\% & 0.3\% & 97.4\% & 0.876 \\
+Blur & $\sigma$ = 3 & 22.2\% & 16.6\% & 6.8\% & 0.7\% & 99.6\% & 0.790 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\textwidth]{figures/edit_comparison.png}
+\caption{PGD against the surrogate compared with random noise of the same budget and with PGD followed by JPEG at
+quality 75, one panel per scored model.}
+\label{fig:compare}
+\end{figure*}
+
+\subsection{Stability across seeds}
+The random seed sets PGD's starting point and the noise baseline. We repeated the full surrogate sweep with two
+more seeds. Across the three seeds the standard deviation of every averaged result stayed at or below 0.69
+percentage points, far smaller than the differences between models.
+
+\subsection{Every deep model as the attacker}\label{sec:cross}
+Low transfer could be a property of our surrogate rather than of transfer in general. To test this we repeated the
+attack with \emph{casia}, \emph{vggface2} and ArcFace as the attacker and scored all five models
+(Table~\ref{tab:matrix}, Fig.~\ref{fig:matrix}). Edits are equally visible whichever model builds them: at every
+budget their SSIM differs by at most 0.005.
+
+Our surrogate is the weakest attacker. At $\varepsilon = 8/255$ its edits break 16.2\% of \emph{casia}'s pairs,
+while edits built against \emph{vggface2} break 82.2\%. It is also the easiest model to fool: edits from
+\emph{casia} and \emph{vggface2} break 84.3\% and 76.5\% of its pairs at the same budget.
+
+Architecture predicts transfer better than training data. The three InceptionResnetV1 models fool one another
+even when trained on different faces: \emph{vggface2}~$\to$~\emph{casia} reaches 82.2\% at $8/255$ and 98.7\% at
+$16/255$. ArcFace resists every attacker; the strongest, \emph{vggface2}, reaches 18.8\% and only at $16/255$.
+ArcFace's own edits transfer moderately to the others (61.9\% surrogate, 45.9\% \emph{casia}, 21.4\%
+\emph{vggface2} at $16/255$).
+
+Transfer is also lopsided. At $8/255$, \emph{vggface2}~$\to$~\emph{casia} (82.2\%) is much stronger than
+\emph{casia}~$\to$~\emph{vggface2} (32.0\%). At the nearly invisible $4/255$, the strongest transfer between two
+different deep models is \emph{casia}~$\to$~\emph{surrogate} at 30.9\%, and at $2/255$ none exceeds 6.1\%.
+
+\begin{table}[t]
+\centering
+\caption{Unmatched share when the edit is built against the attacker (row) and scored on the target (column).
+Bold: attacker scored on itself.}
+\label{tab:matrix}
+\scriptsize
+\setlength{\tabcolsep}{2pt}
+\begin{tabular}{lrrrrrr}
+\toprule
+Attacker $\downarrow$ / target $\rightarrow$ & surrogate & casia & vggface2 & arcface & lbph & SSIM \\
+\midrule
+\multicolumn{7}{l}{\emph{$\varepsilon$ = 4/255}} \\
+surrogate & \textbf{100.0\%} & 4.8\% & 1.4\% & 0.4\% & 39.0\% & 0.955 \\
+casia & 30.9\% & \textbf{98.9\%} & 6.4\% & 0.4\% & 40.3\% & 0.953 \\
+vggface2 & 23.1\% & 22.7\% & \textbf{95.3\%} & 0.5\% & 40.1\% & 0.954 \\
+arcface & 9.9\% & 5.5\% & 2.1\% & \textbf{95.9\%} & 41.5\% & 0.953 \\
+\multicolumn{7}{l}{\emph{$\varepsilon$ = 8/255}} \\
+surrogate & \textbf{100.0\%} & 16.2\% & 3.3\% & 0.5\% & 44.5\% & 0.860 \\
+casia & 84.3\% & \textbf{100.0\%} & 32.0\% & 1.3\% & 45.6\% & 0.856 \\
+vggface2 & 76.5\% & 82.2\% & \textbf{100.0\%} & 3.7\% & 42.6\% & 0.857 \\
+arcface & 29.6\% & 16.2\% & 6.2\% & \textbf{100.0\%} & 46.4\% & 0.856 \\
+\multicolumn{7}{l}{\emph{$\varepsilon$ = 16/255}} \\
+surrogate & \textbf{100.0\%} & 51.2\% & 12.0\% & 0.9\% & 65.4\% & 0.660 \\
+casia & 97.9\% & \textbf{100.0\%} & 75.5\% & 7.3\% & 65.5\% & 0.656 \\
+vggface2 & 97.3\% & 98.7\% & \textbf{100.0\%} & 18.8\% & 60.1\% & 0.657 \\
+arcface & 61.9\% & 45.9\% & 21.4\% & \textbf{100.0\%} & 65.5\% & 0.655 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\textwidth]{figures/attacker_transfer.png}
+\caption{Unmatched share against $\varepsilon$ for each attacker (one panel each), one line per target. The thick
+line is the attacker scored on itself.}
+\label{fig:matrix}
+\end{figure*}
+
+\subsection{What the edits look like}
+Fig.~\ref{fig:example} shows one LFW pair (Vanessa Incontrada) edited by each attacker. At 2--4/255 the edits are hard to
+see; at $16/255$ they add a visible grain, mostly on skin. Fig.~\ref{fig:pert} shows the change alone. The
+pretrained attackers' edits follow the eyes, brows, mouth and outline of the face, while the surrogate's looks like
+texture with little facial structure. Each edit stays inside its attacker's crop; outside it, only PGD's random
+start remains.
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.86\textwidth]{figures/example_0.jpg}
+\caption{Photo $a$ of one pair edited against each attacker (rows) at each budget (columns), with the comparison
+photo $b$ on the left. Tags under each photo: models fooled (red) or still matching (grey); S surrogate, C casia,
+V vggface2, A arcface, L lbph.}
+\label{fig:example}
+\end{figure*}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{figures/perturbation_0.jpg}
+\caption{The edit alone (edited minus original) for the pair in Fig.~\ref{fig:example}, each column scaled by
+$1/\varepsilon$.}
+\label{fig:pert}
+\end{figure}
+
+\section{Discussion}
+Our first experiment, with only our surrogate as the attacker, suggested that edits transfer mainly to models that
+share training data. The cross-attacker results overturn that reading. Edits transfer readily among the three
+InceptionResnetV1 models whatever their training data, and ArcFace, the one model with a different architecture,
+is barely touched by any of them. On the proposal's question of architecture against data, the evidence favours
+architecture.
+
+We did not test why our surrogate is a weak attacker, but three explanations fit what we saw. It may overfit:
+training accuracy reached 97.4\% while LFW accuracy levelled off, and we kept the final epoch rather than the
+best. Its crop geometry differs from the facenet models', which use a box crop; ArcFace, which shares the
+landmark-based alignment, transfers better to the surrogate (29.6\%) than to \emph{casia} (16.2\%) at
+$8/255$. It also had far less training than the pretrained models.
+
+LBPH needs care. With a clean accuracy of 67.0\% it already misses 47.2\% of same-person pairs before any edit.
+Random noise at $16/255$ breaks 90.1\% of its pairs against 65.4\% for PGD, and blur at $\sigma = 3$ breaks
+99.6\%. It reacts to any change in fine texture, so we treat it as a baseline rather than as evidence of transfer.
+
+This is discouraging for privacy tools. Whether an edit protects someone depends on which model it was built
+against, and the protection is much weaker against a model with a different architecture. At a nearly invisible
+budget, even the best-matched pair of models transfers to only 30.9\% of pairs.
+
+\section{Limitations}
+We used one attack and did not try ensemble attacks~\cite{liu2017}, which usually transfer better. Only the
+surrogate attacker was repeated over three seeds. Landmarks are detected on the clean photo and reused for its
+edited versions, whereas a deployed system would detect the face again. PGD on the GPU is not bit-for-bit
+reproducible even with a fixed seed; re-running the example edits changed 3 of 300 fooled-or-matched decisions,
+all for models sitting at their threshold. PGD's random start leaves noise outside the attacker's crop, which
+lowers SSIM slightly and equally for every attacker. Finally, we did not check whether protection is equally
+effective across demographic groups, which matters given LFW's skew~\cite{hanjain}.
+
+\section{Conclusion}
+PGD edits built against a from-scratch face recognition model transfer poorly to models its author never used.
+Changing the attacker shows that this is partly a weakness of our surrogate: edits built against a pretrained
+InceptionResnetV1 transfer strongly to other networks with that architecture, even across training sets. A
+different architecture resists edits from every attacker we tried until the edit is clearly visible. A privacy
+edit made once against one model should not be expected to protect against an unknown recogniser.
+
+\begin{thebibliography}{99}
+\bibitem{fawkes} S.~Shan, E.~Wenger, J.~Zhang, H.~Li, H.~Zheng, and B.~Y. Zhao, ``Fawkes: Protecting privacy
+against unauthorized deep learning models,'' in \emph{Proc. 29th USENIX Security Symp.}, 2020, pp. 1589--1604.
+\bibitem{lowkey} V.~Cherepanova, M.~Goldblum, H.~Foley, S.~Duan, J.~Dickerson, G.~Taylor, and T.~Goldstein,
+``LowKey: Leveraging adversarial attacks to protect social media users from facial recognition,'' in \emph{Proc.
+Int. Conf. Learn. Represent. (ICLR)}, 2021.
+\bibitem{radiya} E.~Radiya-Dixit, S.~Hong, N.~Carlini, and F.~Tram\`er, ``Data poisoning won't save you from facial
+recognition,'' in \emph{Proc. Int. Conf. Learn. Represent. (ICLR)}, 2022.
+\bibitem{szegedy2014} C.~Szegedy, W.~Zaremba, I.~Sutskever, J.~Bruna, D.~Erhan, I.~Goodfellow, and R.~Fergus,
+``Intriguing properties of neural networks,'' in \emph{Proc. Int. Conf. Learn. Represent. (ICLR)}, 2014.
+\bibitem{fgsm} I.~J. Goodfellow, J.~Shlens, and C.~Szegedy, ``Explaining and harnessing adversarial examples,'' in
+\emph{Proc. Int. Conf. Learn. Represent. (ICLR)}, 2015.
+\bibitem{madry} A.~Madry, A.~Makelov, L.~Schmidt, D.~Tsipras, and A.~Vladu, ``Towards deep learning models resistant
+to adversarial attacks,'' in \emph{Proc. Int. Conf. Learn. Represent. (ICLR)}, 2018.
+\bibitem{papernot} N.~Papernot, P.~McDaniel, and I.~Goodfellow, ``Transferability in machine learning: From
+phenomena to black-box attacks using adversarial samples,'' arXiv:1605.07277, 2016.
+\bibitem{liu2017} Y.~Liu, X.~Chen, C.~Liu, and D.~Song, ``Delving into transferable adversarial examples and
+black-box attacks,'' in \emph{Proc. Int. Conf. Learn. Represent. (ICLR)}, 2017.
+\bibitem{lfw} G.~B. Huang, M.~Ramesh, T.~Berg, and E.~Learned-Miller, ``Labeled Faces in the Wild: A database for
+studying face recognition in unconstrained environments,'' Univ. Massachusetts, Amherst, Tech. Rep. 07-49, 2007.
+\bibitem{casia} D.~Yi, Z.~Lei, S.~Liao, and S.~Z. Li, ``Learning face representation from scratch,''
+arXiv:1411.7923, 2014.
+\bibitem{vggface2} Q.~Cao, L.~Shen, W.~Xie, O.~M. Parkhi, and A.~Zisserman, ``VGGFace2: A dataset for recognising
+faces across pose and age,'' in \emph{Proc. IEEE Int. Conf. Autom. Face Gesture Recognit. (FG)}, 2018,
+pp. 67--74.
+\bibitem{facenet} F.~Schroff, D.~Kalenichenko, and J.~Philbin, ``FaceNet: A unified embedding for face recognition
+and clustering,'' in \emph{Proc. IEEE Conf. Comput. Vis. Pattern Recognit. (CVPR)}, 2015, pp. 815--823.
+\bibitem{inceptionv4} C.~Szegedy, S.~Ioffe, V.~Vanhoucke, and A.~A. Alemi, ``Inception-v4, Inception-ResNet and the
+impact of residual connections on learning,'' in \emph{Proc. AAAI Conf. Artif. Intell.}, 2017, pp. 4278--4284.
+\bibitem{arcface} J.~Deng, J.~Guo, N.~Xue, and S.~Zafeiriou, ``ArcFace: Additive angular margin loss for deep face
+recognition,'' in \emph{Proc. IEEE/CVF Conf. Comput. Vis. Pattern Recognit. (CVPR)}, 2019, pp. 4690--4699.
+\bibitem{webface260m} Z.~Zhu, G.~Huang, J.~Deng, Y.~Ye, J.~Huang, X.~Chen, J.~Zhu, T.~Yang, J.~Lu, D.~Du, and
+J.~Zhou, ``WebFace260M: A benchmark unveiling the power of million-scale deep face recognition,'' in \emph{Proc.
+IEEE/CVF Conf. Comput. Vis. Pattern Recognit. (CVPR)}, 2021.
+\bibitem{lbph} T.~Ahonen, A.~Hadid, and M.~Pietik\"ainen, ``Face description with local binary patterns:
+Application to face recognition,'' \emph{IEEE Trans. Pattern Anal. Mach. Intell.}, vol.~28, no.~12,
+pp. 2037--2041, 2006.
+\bibitem{mtcnn} K.~Zhang, Z.~Zhang, Z.~Li, and Y.~Qiao, ``Joint face detection and alignment using multitask
+cascaded convolutional networks,'' \emph{IEEE Signal Process. Lett.}, vol.~23, no.~10, pp. 1499--1503, 2016.
+\bibitem{ssim} Z.~Wang, A.~C. Bovik, H.~R. Sheikh, and E.~P. Simoncelli, ``Image quality assessment: From error
+visibility to structural similarity,'' \emph{IEEE Trans. Image Process.}, vol.~13, no.~4, pp. 600--612, 2004.
+\bibitem{facenetpytorch} T.~Esler, ``facenet-pytorch,'' GitHub repository, 2019. [Online]. Available:
+\url{https://github.com/timesler/facenet-pytorch}
+\bibitem{deepid2} Y.~Sun, Y.~Chen, X.~Wang, and X.~Tang, ``Deep learning face representation by joint
+identification-verification,'' in \emph{Proc. Adv. Neural Inf. Process. Syst. (NeurIPS)}, 2014.
+\bibitem{hanjain} H.~Han and A.~K. Jain, ``Age, gender and race estimation from unconstrained face images,''
+Michigan State Univ., Tech. Rep. MSU-CSE-14-5, 2014.
+\end{thebibliography}
+
+\end{document}
