@@ -2,6 +2,25 @@
 \usepackage[T1]{fontenc}
 \usepackage{amsmath,amssymb,graphicx,booktabs,cite,url}
 \usepackage[hidelinks]{hyperref}
+\usepackage{placeins}
+\usepackage{stfloats}
+
+% Let LaTeX put more floats on a text page (so they stay near the text that
+% cites them) instead of deferring them past the references.
+\renewcommand{\topfraction}{0.9}
+\renewcommand{\bottomfraction}{0.8}
+\renewcommand{\textfraction}{0.07}
+\renewcommand{\floatpagefraction}{0.75}
+\renewcommand{\dbltopfraction}{0.9}
+\renewcommand{\dblfloatpagefraction}{0.75}
+\setcounter{topnumber}{3}
+\setcounter{bottomnumber}{2}
+\setcounter{totalnumber}{5}
+\setcounter{dbltopnumber}{3}
+
+% Don't stretch a short column (notably the last one and the bibliography) to
+% the full page height; let it end where its content ends.
+\raggedbottom
 
 \begin{document}
 
@@ -91,7 +110,7 @@ models. The \emph{casia} model therefore differs from it only in initialisation,
 and \emph{arcface} in architecture, objective and data. LBPH compares an $8\times8$ grid of uniform local binary
 pattern histograms with the chi-square distance.
 
-\begin{table}[t]
+\begin{table}[tb]
 \centering
 \caption{Models. ``5-pt'' is five-landmark alignment; ``box'' is an MTCNN box crop with a 32-pixel margin.}
 \label{tab:models}
@@ -158,7 +177,7 @@ pixels by clean accuracy; 32 was best for both models. The three pretrained deep
 points of their published figures. For the cross-attacker experiments we converted ArcFace from ONNX to PyTorch
 with onnx2torch so that gradients flow through it; the converted model reproduces the original's accuracy.
 
-\begin{table}[t]
+\begin{table}[tb]
 \centering
 \caption{Clean LFW View 2 accuracy (mean $\pm$ std over 10 folds) against published figures.}
 \label{tab:valid}
@@ -189,7 +208,7 @@ With our surrogate as the attacker, shared training data looks decisive: \emph{c
 loses 4.3 times as many pairs at $16/255$ as \emph{vggface2}. Section~\ref{sec:cross} shows that this reading
 does not survive a change of attacker.
 
-\begin{table*}[t]
+\begin{table*}[tb]
 \centering
 \caption{Unmatched share of same-person pairs (mean $\pm$ std over folds) after PGD against the surrogate.
 $\varepsilon = 0$ is each model's baseline error. SSIM is between edited and original photo.}
@@ -210,7 +229,7 @@ $\varepsilon$ & surrogate & casia & vggface2 & arcface & lbph & SSIM \\
 \end{tabular}
 \end{table*}
 
-\begin{figure}[t]
+\begin{figure}[tb]
 \centering
 \includegraphics[width=\columnwidth]{figures/main_result.png}
 \caption{Unmatched share against edit budget for PGD against the surrogate, one line per model (error bars: std
@@ -226,7 +245,7 @@ share at $2/255$ from 84.8\% to 39.1\%, but edits of $4/255$ and above survive i
 barely register: JPEG at quality 30 leaves the surrogate at 3.4\%, and only strong blur ($\sigma = 3$ pixels, SSIM
 0.790) has an effect, 22.2\% for the surrogate and 16.6\% for \emph{casia}.
 
-\begin{table}[t]
+\begin{table}[tb]
 \centering
 \caption{Unmatched share under baseline edits (S surrogate, C casia, V vggface2, A arcface, L lbph).}
 \label{tab:base}
@@ -249,7 +268,7 @@ Blur & $\sigma$ = 3 & 22.2\% & 16.6\% & 6.8\% & 0.7\% & 99.6\% & 0.790 \\
 \end{tabular}
 \end{table}
 
-\begin{figure*}[t]
+\begin{figure*}[tb]
 \centering
 \includegraphics[width=\textwidth]{figures/edit_comparison.png}
 \caption{PGD against the surrogate compared with random noise of the same budget and with PGD followed by JPEG at
@@ -282,7 +301,7 @@ Transfer is also lopsided. At $8/255$, \emph{vggface2}~$\to$~\emph{casia} (82.2\
 \emph{casia}~$\to$~\emph{vggface2} (32.0\%). At the nearly invisible $4/255$, the strongest transfer between two
 different deep models is \emph{casia}~$\to$~\emph{surrogate} at 30.9\%, and at $2/255$ none exceeds 6.1\%.
 
-\begin{table}[t]
+\begin{table}[tb]
 \centering
 \caption{Unmatched share when the edit is built against the attacker (row) and scored on the target (column).
 Bold: attacker scored on itself.}
@@ -312,7 +331,7 @@ arcface & 61.9\% & 45.9\% & 21.4\% & \textbf{100.0\%} & 65.5\% & 0.655 \\
 \end{tabular}
 \end{table}
 
-\begin{figure*}[t]
+\begin{figure*}[tb]
 \centering
 \includegraphics[width=\textwidth]{figures/attacker_transfer.png}
 \caption{Unmatched share against $\varepsilon$ for each attacker (one panel each), one line per target. The thick
@@ -321,28 +340,11 @@ line is the attacker scored on itself.}
 \end{figure*}
 
 \subsection{What the edits look like}
-Fig.~\ref{fig:example} shows one LFW pair (Vanessa Incontrada) edited by each attacker. At 2--4/255 the edits are hard to
+Fig.~\ref{fig:example}, at the end of the paper, shows one LFW pair (Vanessa Incontrada) edited by each attacker. At 2--4/255 the edits are hard to
 see; at $16/255$ they add a visible grain, mostly on skin. Fig.~\ref{fig:pert} shows the change alone. The
 pretrained attackers' edits follow the eyes, brows, mouth and outline of the face, while the surrogate's looks like
 texture with little facial structure. Each edit stays inside its attacker's crop; outside it, only PGD's random
 start remains.
-
-\begin{figure*}[t]
-\centering
-\includegraphics[width=0.86\textwidth]{figures/example_0.jpg}
-\caption{Photo $a$ of one pair edited against each attacker (rows) at each budget (columns), with the comparison
-photo $b$ on the left. Tags under each photo: models fooled (red) or still matching (grey); S surrogate, C casia,
-V vggface2, A arcface, L lbph.}
-\label{fig:example}
-\end{figure*}
-
-\begin{figure}[t]
-\centering
-\includegraphics[width=\columnwidth]{figures/perturbation_0.jpg}
-\caption{The edit alone (edited minus original) for the pair in Fig.~\ref{fig:example}, each column scaled by
-$1/\varepsilon$.}
-\label{fig:pert}
-\end{figure}
 
 \section{Discussion}
 Our first experiment, with only our surrogate as the attacker, suggested that edits transfer mainly to models that
@@ -357,7 +359,7 @@ best. Its crop geometry differs from the facenet models', which use a box crop; 
 landmark-based alignment, transfers better to the surrogate (29.6\%) than to \emph{casia} (16.2\%) at
 $8/255$. It also had far less training than the pretrained models.
 
-LBPH needs care. With a clean accuracy of 67.0\% it already misses 47.2\% of same-person pairs before any edit.
+LBPH requires a more cautious interpretation. With a clean accuracy of 67.0\% it already misses 47.2\% of same-person pairs before any edit.
 Random noise at $16/255$ breaks 90.1\% of its pairs against 65.4\% for PGD, and blur at $\sigma = 3$ breaks
 99.6\%. It reacts to any change in fine texture, so we treat it as a baseline rather than as evidence of transfer.
 
@@ -381,6 +383,8 @@ InceptionResnetV1 transfer strongly to other networks with that architecture, ev
 different architecture resists edits from every attacker we tried until the edit is clearly visible. A privacy
 edit made once against one model should not be expected to protect against an unknown recogniser.
 
+
+\FloatBarrier
 \begin{thebibliography}{99}
 \bibitem{fawkes} S.~Shan, E.~Wenger, J.~Zhang, H.~Li, H.~Zheng, and B.~Y. Zhao, ``Fawkes: Protecting privacy
 against unauthorized deep learning models,'' in \emph{Proc. 29th USENIX Security Symp.}, 2020, pp. 1589--1604.
@@ -429,5 +433,25 @@ identification-verification,'' in \emph{Proc. Adv. Neural Inf. Process. Syst. (N
 \bibitem{hanjain} H.~Han and A.~K. Jain, ``Age, gender and race estimation from unconstrained face images,''
 Michigan State Univ., Tech. Rep. MSU-CSE-14-5, 2014.
 \end{thebibliography}
+
+% The two large example figures go on their own page on their own page at the very end, after the references, so
+% neither breaks into the body text.
+
+\begin{figure*}[p]
+\centering
+\includegraphics[width=0.80\textwidth]{figures/example_0.jpg}
+\caption{Photo $a$ of one pair edited against each attacker (rows) at each budget (columns), with the comparison
+photo $b$ on the left. Tags under each photo: models fooled (red) or still matching (grey); S surrogate, C casia,
+V vggface2, A arcface, L lbph.}
+\label{fig:example}
+\end{figure*}
+
+\begin{figure*}[p]
+\centering
+\includegraphics[width=0.38\textwidth]{figures/perturbation_0.jpg}
+\caption{The edit alone (edited minus original) for the pair in Fig.~\ref{fig:example}, each column scaled by
+$1/\varepsilon$.}
+\label{fig:pert}
+\end{figure*}
 
 \end{document}
