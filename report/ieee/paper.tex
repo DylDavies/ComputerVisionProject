@@ -78,7 +78,7 @@ checked against its published figure before any attack.
 
 \section{Related Work}
 Small, targeted input changes can flip the output of a deep network~\cite{szegedy2014}, and gradient-sign
-methods~\cite{fgsm} and PGD~\cite{madry} find them efficiently. Such perturbations often transfer between models
+methods~\cite{fgsm} find them in a single step, and PGD~\cite{madry} finds them more reliably by iterating. Such perturbations often transfer between models
 trained for the same task~\cite{papernot}, which makes black-box attacks practical. Liu \emph{et
 al.}~\cite{liu2017} found that targeted perturbations rarely transfer from one model to another, and that
 optimising against an ensemble of models makes them transfer much more often.
@@ -87,13 +87,14 @@ Face recognition models map an aligned face crop to an embedding and compare emb
 FaceNet~\cite{facenet} trained such embeddings with a triplet loss; ArcFace~\cite{arcface} adds an angular margin to
 a softmax loss. Widely used pretrained models include InceptionResnetV1~\cite{inceptionv4} networks trained on
 VGGFace2~\cite{vggface2} and CASIA-WebFace~\cite{casia}, distributed with facenet-pytorch~\cite{facenetpytorch},
-and InsightFace's ArcFace ResNet-50 trained on WebFace600K, a subset of WebFace260M~\cite{webface260m}. LFW remains
+and InsightFace's~\cite{insightface} ArcFace ResNet-50 trained on WebFace600K, a subset of the WebFace260M
+corpus~\cite{webface260m}. LFW remains
 the standard verification benchmark, although it is too small to train on~\cite{deepid2} and its subjects are
 mostly male and White~\cite{hanjain}.
 
 Fawkes and LowKey use adversarial perturbations as a privacy defence, and both depend on transfer from the model
 they optimise against to the one a third party runs. Radiya-Dixit \emph{et al.} show that recognisers trained
-later can learn to ignore such perturbations. We isolate the inference-time question and vary architecture and
+later can learn to ignore such perturbations~\cite{radiya}. We isolate the inference-time question and vary architecture and
 training data separately.
 
 \section{Method}
@@ -107,8 +108,9 @@ photo of the same person.
 Table~\ref{tab:models} lists the five models. The surrogate is an InceptionResnetV1 that we trained from scratch
 with a softmax cross-entropy loss on CASIA-WebFace, the same architecture and objective as the two facenet-pytorch
 models. The \emph{casia} model therefore differs from it only in initialisation, \emph{vggface2} in training data,
-and \emph{arcface} in architecture, objective and data. LBPH compares an $8\times8$ grid of uniform local binary
-pattern histograms with the chi-square distance.
+and \emph{arcface} in architecture, objective and data. Our LBPH baseline uses local binary pattern
+histograms~\cite{lbph}: we divide the crop into an $8\times8$ grid, build a uniform-pattern histogram per cell,
+and compare the concatenated histograms with the chi-square distance.
 
 \begin{table}[tb]
 \centering
@@ -133,14 +135,14 @@ lbph & LBP histograms & none & none & 5-pt, 112$^2$ \\
 Each model expects faces cropped and aligned its own way. A wrong crop raises no error; it only lowers accuracy,
 which is easy to miss. We run MTCNN~\cite{mtcnn} once on every LFW photo (it found a face in all 7,701) and express each model's crop
 as a $2\times3$ affine map from the $250\times250$ photo to the model input: a box crop at $160\times160$ for the
-facenet models, the standard InsightFace five-point alignment at $112\times112$ for ArcFace and LBPH, and a
+facenet models, the standard InsightFace~\cite{insightface} five-point alignment at $112\times112$ for ArcFace and LBPH, and a
 five-point alignment at $160\times160$ for the surrogate, using the landmark positions MTCNN finds on its CASIA
 training crops. The crops are applied with a differentiable bilinear warp, so the surrogate's own cropping sits
 inside the attack. Every edit is made on the full photo, and every model crops the same edited photo.
 
 \subsection{Verification protocol}
 A pair is accepted as the same person when the distance between embeddings (cosine for the deep models,
-chi-square for LBPH) is below a threshold. Following the LFW protocol, each model's threshold for a fold is fitted
+chi-square for LBPH) is below a threshold. Following the LFW protocol~\cite{lfw}, each model's threshold for a fold is fitted
 on the clean pairs of the other nine folds. We keep these clean thresholds fixed when scoring edited photos, so
 $\varepsilon = 0$ gives each model's ordinary error rate.
 
@@ -164,12 +166,14 @@ accepts after photo $a$ of each pair is edited, averaged over the ten folds. SSI
 and original photo measures how visible the edit is.
 
 \section{Experimental Setup}
-LFW View~2 holds 6,000 fixed pairs in ten folds. We use them unchanged, including the six pairs its maintainers
-list as mislabelled. The surrogate was trained for 30 epochs on CASIA-WebFace (490,623 aligned images of
-10,572 people) with SGD (Nesterov momentum 0.9, weight decay $5\times10^{-4}$), a one-cycle schedule peaking at a
+LFW View~2 holds 6,000 fixed pairs in ten folds. We use the published pairs unchanged, with no corrections of
+our own. The surrogate was trained for 30 epochs on CASIA-WebFace~\cite{casia} (490,623 aligned images
+of 10,572 identities in our copy) with SGD (Nesterov momentum 0.9, weight decay $5\times10^{-4}$), a one-cycle
+schedule~\cite{onecycle} peaking at a
 learning rate of 0.1, batch size 256, bf16 mixed precision and random horizontal flips. Training took about
 1.5~hours on one RTX~5070~Ti. The final epoch reached 98.12\% clean LFW accuracy (best 98.32\%, at epoch
-27), against 99.05\% published for the pretrained \emph{casia} model trained on the same data.
+27), against the 99.05\% facenet-pytorch reports~\cite{facenetpytorch} for the pretrained \emph{casia} model
+trained on the same data.
 
 Because a misaligned crop lowers accuracy without any error, we checked every model against its published LFW
 accuracy before attacking (Table~\ref{tab:valid}). We chose the facenet crop margin from $\{0, 14, 32, 44\}$
@@ -179,7 +183,9 @@ with onnx2torch so that gradients flow through it; the converted model reproduce
 
 \begin{table}[tb]
 \centering
-\caption{Clean LFW View 2 accuracy (mean $\pm$ std over 10 folds) against published figures.}
+\caption{Clean LFW View 2 accuracy (mean $\pm$ std over 10 folds) against the figures published for the same
+checkpoints: facenet-pytorch's model table~\cite{facenetpytorch} for \emph{casia} and \emph{vggface2},
+InsightFace's model zoo~\cite{insightface} for the \emph{buffalo\_l} ArcFace model.}
 \label{tab:valid}
 \footnotesize
 \begin{tabular}{lrrr}
@@ -391,7 +397,7 @@ against unauthorized deep learning models,'' in \emph{Proc. 29th USENIX Security
 \bibitem{lowkey} V.~Cherepanova, M.~Goldblum, H.~Foley, S.~Duan, J.~Dickerson, G.~Taylor, and T.~Goldstein,
 ``LowKey: Leveraging adversarial attacks to protect social media users from facial recognition,'' in \emph{Proc.
 Int. Conf. Learn. Represent. (ICLR)}, 2021.
-\bibitem{radiya} E.~Radiya-Dixit, S.~Hong, N.~Carlini, and F.~Tram\`er, ``Data poisoning won't save you from facial
+\bibitem{radiya} E.~Radiya-Dixit, N.~Carlini, S.~Hong, and F.~Tram\`er, ``Data poisoning won't save you from facial
 recognition,'' in \emph{Proc. Int. Conf. Learn. Represent. (ICLR)}, 2022.
 \bibitem{szegedy2014} C.~Szegedy, W.~Zaremba, I.~Sutskever, J.~Bruna, D.~Erhan, I.~Goodfellow, and R.~Fergus,
 ``Intriguing properties of neural networks,'' in \emph{Proc. Int. Conf. Learn. Represent. (ICLR)}, 2014.
@@ -430,6 +436,10 @@ visibility to structural similarity,'' \emph{IEEE Trans. Image Process.}, vol.~1
 \url{https://github.com/timesler/facenet-pytorch}
 \bibitem{deepid2} Y.~Sun, Y.~Chen, X.~Wang, and X.~Tang, ``Deep learning face representation by joint
 identification-verification,'' in \emph{Proc. Adv. Neural Inf. Process. Syst. (NeurIPS)}, 2014.
+\bibitem{insightface} J.~Guo and J.~Deng, ``InsightFace: 2D and 3D face analysis project,'' GitHub repository,
+model zoo. [Online]. Available: \url{https://github.com/deepinsight/insightface}
+\bibitem{onecycle} L.~N. Smith and N.~Topin, ``Super-convergence: Very fast training of neural networks using
+large learning rates,'' arXiv:1708.07120, 2018.
 \bibitem{hanjain} H.~Han and A.~K. Jain, ``Age, gender and race estimation from unconstrained face images,''
 Michigan State Univ., Tech. Rep. MSU-CSE-14-5, 2014.
 \end{thebibliography}

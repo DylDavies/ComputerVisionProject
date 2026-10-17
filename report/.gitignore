@@ -5,3 +5,6 @@
 *.fls
 *.fdb_latexmk
 *.synctex.gz
+
+# Council sources (not committed)
+papers/
