@@ -32,18 +32,16 @@
 \maketitle
 
 \begin{abstract}
-Photo-cloaking tools assume that an edit built against one face recognition model will also fool models its
-author never saw. We test that assumption on the 3,000 same-person pairs of LFW View~2. We trained an
-InceptionResnetV1 surrogate from scratch on CASIA-WebFace, edited one photo in each pair with $L_\infty$ projected
-gradient descent (PGD) against it, and scored the edits on four models that played no part in building them: two
-pretrained InceptionResnetV1 networks, an ArcFace ResNet-50 and an LBPH matcher. At $\varepsilon = 4/255$ (SSIM
-0.955) the edit stops the surrogate matching 100.0\% of the pairs, but no other deep model loses more than
-4.8\%. Repeating the attack with each pretrained network as the attacker shows that our surrogate is the
-weakest source of transferable edits: at $\varepsilon = 8/255$, edits built against the VGGFace2 model break
-82.2\% of the CASIA model's pairs, against 16.2\% for our surrogate. Edits transfer well between networks that
-share an architecture, even when their training data differ, while ArcFace resists every attacker (at most
-18.8\%, at a clearly visible $\varepsilon = 16/255$). Random noise, JPEG compression and blur barely affect the
-deep models. Across three random seeds, no result has a standard deviation above 0.69 percentage points.
+Photo-cloaking tools protect people from face recognition by adding small, nearly invisible changes, called perturbations, to photos before they are posted. Perturbations generated for a specific face 
+recognition model are only useful if they transfer to unseen models. This transfer is evaluated on the 3,000 same-person pairs of the Labeled Faces in the Wild (LFW) benchmark. An InceptionResnetV1
+surrogate model was trained from scratch on CASIA-WebFace and used to edit one photo in each pair with Projected Gradient Descent (PGD), an attack that repeatedly adjusts pixels to push the photo's face embedding away from its
+original, where no pixel is changed by more than a fraction $\varepsilon$ of the brightness range (0 to 255). Transferability was evaluated across four target models: two pretrained InceptionResnetV1 networks, an 
+ArcFace ResNet-50, and a Local Binary Pattern Histogram (LBPH) matcher. For each model, same-person pairs that no longer matched after the perturbation were counted. LBPH, which already fails to match 47.2\% of same-person pairs without any edit, serves as a baseline only. At $\varepsilon = 4/255$ (Structural Similarity Index Measure, 
+SSIM, of 0.955, where 1.0 is an identical image) the edit stops the surrogate matching 100.0\% of the pairs, but no other deep model loses more than 4.8\%. Repeating the attack with each pretrained network as the attacker shows that our surrogate 
+is the weakest source of transferable edits: at $\varepsilon = 8/255$, edits built against the VGGFace2 model break 82.2\% of the CASIA model's pairs, whereas edits built against our surrogate break 16.2\%. Edits move between the two 
+pretrained InceptionResnetV1 networks despite their different training data, while ArcFace resists every attacker (at most 18.8\% of pairs, at a clearly visible $\varepsilon = 16/255$). Random noise, Joint Photographic 
+Experts Group (JPEG) compression and blur barely affect the deep models, and across three random seeds of the surrogate sweep, no result has a standard deviation above 0.69 percentage points. These results indicate that edits built against one
+model give little protection against models with a different architecture, and that transfer is more consistent with shared architecture than with shared training data.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -51,29 +49,45 @@ adversarial examples, transferability, face recognition, privacy, projected grad
 \end{IEEEkeywords}
 
 \section{Introduction}
-Fawkes~\cite{fawkes} and LowKey~\cite{lowkey} protect people from face recognition by adding small perturbations to
-photos before they are posted. A photo is edited once, against whatever model the tool's designers had, and must
-then defeat every system that sees it later. Radiya-Dixit \emph{et al.}~\cite{radiya} point out how weak that
-position is: the defender commits to an edit, and the recogniser can be replaced or retrained afterwards.
+A face recognition model converts a photo of a face into an embedding, a vector of numbers, and judges two photos to show the same person when the embeddings are close. Once photos are posted online, such a 
+model can match them without the consent of the person in the picture. Fawkes~\cite{fawkes} and LowKey~\cite{lowkey} offer a means of counteracting this. Both add a 
+perturbation to a photo before posting: small changes to pixel values, hard for the human eye to discern, are chosen so that a recogniser misjudges the face. Fawkes poisons the data that a recogniser
+trains on, so that a model trained on perturbed photos fails to recognise unperturbed photos of the same person (data poisoning). LowKey applies an adversarial filter so that photos evade commercial face 
+recognition systems, including the face detection stage.
 
-Both tools change the photos a recogniser later learns from or searches. We ask a simpler question about a
-recogniser that is already trained. If a photo is edited
-until one model no longer recognises its owner, do models the editor never had access to also stop recognising
-them? And where some models resist while others give way, does the difference follow their architecture or the
-faces they were trained on?
+A photo that is edited once should resist recognition by every recogniser that later processes the photo. This depends on the transferability of the edit: the extent to which an edit built against one model 
+also degrades or fools other models. The extent of this transferability between models is explored in this paper. A recogniser trained after the photos are posted can also learn to ignore the 
+perturbation~\cite{radiya}, but the present work concerns recognisers that are already trained.
 
-We answer with a controlled transfer experiment on LFW~\cite{lfw}. The four test models were chosen so that each
-differs from our surrogate in a known way. The \emph{casia} model matches its architecture, objective and training
-data, so only the random initialisation differs; \emph{vggface2} keeps the architecture but saw different faces;
-ArcFace changes all of these. A hand-crafted LBPH matcher~\cite{lbph} adds a baseline without deep learning. Our
-contributions are:
+The transfer is measured on pretrained recognisers. The edits are generated with Projected Gradient Descent (PGD)~\cite{madry}. A neural network is differentiable, so the gradient of the distance between a 
+photo's embedding and the original embedding, taken with respect to the pixels, shows which way to change each pixel to push the embedding furthest. PGD takes many small steps in that direction, and after 
+each step the result is clipped so that no pixel differs from the original by more than $\varepsilon$. Here $\varepsilon$ is the largest change permitted to any one pixel, expressed as a fraction of the 
+full 0 to 255 brightness range, so $\varepsilon = 4/255$ allows each pixel to move by at most 4 brightness levels, which is barely visible. Because the gradient is taken from one model
+only, the edit may exploit weaknesses specific to that model and fail on any other.
+
+Two questions govern this investigation: (1) if a photo is edited until one model no longer recognises its owner, do models the editor never had access to also stop recognising that person? 
+(2) Where some models resist the perturbation while others do not, is the difference explained by a shared architecture or by the faces used in training?
+
+The questions are investigated through a controlled experiment on Labeled Faces in the Wild
+(LFW)~\cite{lfw}, a benchmark of photo pairs labelled as the same person or different people. One photo of each
+same-person pair is edited, and the pairs that a model no longer matches are counted. The edits are built against a
+surrogate: an InceptionResnetV1 network~\cite{inceptionv4} trained from scratch on CASIA-WebFace~\cite{casia}. Four
+test models are scored on these edits, and each differs from the surrogate in a known way. The \emph{casia} model
+matches the surrogate in architecture, loss and training dataset but was trained separately, with a different crop and
+training procedure. The \emph{vggface2} model shares the architecture and loss but was trained on different faces
+(VGGFace2~\cite{vggface2}). ArcFace~\cite{arcface}, a ResNet-50 trained with an angular margin loss, differs in
+architecture, loss and training data. A hand-crafted matcher based on Local Binary Pattern Histograms
+(LBPH)~\cite{lbph} adds a baseline that uses no deep learning. In a second experiment, each pretrained model in turn
+replaces the surrogate as the attacker. The visibility of each edit is measured with the Structural Similarity Index
+Measure (SSIM)~\cite{ssim}, and PGD is compared with random noise, Joint Photographic Experts Group (JPEG)
+compression and blur, which any user can apply for free. The contributions are:
 \begin{itemize}
 \item a measurement of how often PGD edits built against a from-scratch surrogate stop four unseen models from
 matching same-person pairs, over seven edit budgets, with random-noise, JPEG and blur baselines;
-\item an attacker--target matrix in which every differentiable model takes a turn as the attacker, showing that
-shared architecture predicts transfer better than shared training data;
-\item a pipeline in which every model crops the same edited photo its own way, with each model's clean accuracy
-checked against its published figure before any attack.
+\item an attacker--target matrix in which every differentiable model takes a turn as the attacker, whose pattern is
+more consistent with shared architecture than with shared training data as the driver of transfer;
+\item a pipeline in which the same edited photo is cropped separately for each model, with the clean accuracy of
+every model checked against its published figure before any attack.
 \end{itemize}
 
 \section{Related Work}
