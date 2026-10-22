@@ -61,6 +61,22 @@ def test_pgd_respects_budget_and_moves_embedding():
     assert (moved > 0).all()
 
 
+def test_resnet_surrogate_checkpoint_round_trip(tmp_path):
+    from facetransfer.models import load_model, surrogate_crop, surrogate_net
+
+    torch.manual_seed(0)
+    net = surrogate_net("resnet50", num_classes=10).eval()
+    torch.save({"state_dict": net.state_dict(), "num_classes": 10, "arch": "resnet50"}, tmp_path / "surrogate_r50.pt")
+    model = load_model("surrogate_r50", "cpu", tmp_path, tmp_path)
+    assert model.differentiable and not model.net.classify
+
+    images = torch.rand(2, 3, 250, 250)
+    meta = {"landmarks": np.tile(ARCFACE_TEMPLATE * 1.5 + 50, (2, 1, 1)).astype(np.float32)}
+    affines = torch.from_numpy(surrogate_crop(meta, (250, 250)))
+    emb = model.embed(images, affines)
+    assert emb.shape == (2, 512) and torch.allclose(emb.norm(dim=-1), torch.ones(2), atol=1e-5)
+
+
 def test_watch_parses_training_log(tmp_path):
     from facetransfer.watch import render
 
