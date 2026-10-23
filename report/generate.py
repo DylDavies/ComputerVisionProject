@@ -197,6 +197,7 @@ from results import (  # noqa: E402
     off_diag_eps4,
     people,
     pg,
+    saved,
     smoke,
     spread,
     ssim,
@@ -458,8 +459,9 @@ story += [
         "Training took about 1.5 hours on an RTX 5070 Ti."
     ),
     P(
-        "After each epoch the network was evaluated on clean LFW View 2 with the same 10-fold protocol. The saved model is "
-        "the final epoch."
+        f"500 CASIA identities were held out of training and used as a validation set (fixed same-person and different-person "
+        f"pairs). After each epoch the network was scored on those pairs and on clean LFW View 2 (10-fold protocol). The saved "
+        f"model is the epoch with the best held-out accuracy (epoch {saved + 1}); LFW played no part in the choice."
     ),
 ]
 best = max(e[3] for e in epochs)
@@ -476,7 +478,7 @@ story += [
         f"Clean LFW accuracy rose from {pct(epochs[0][3], 2)} after one epoch to {pct(epochs[-1][3], 2)} after "
         f"{len(epochs)} (best {pct(best, 2)} in epoch {[int(e[0]) + 1 for e in epochs if e[3] == best][0]}, highlighted). "
         "For comparison, the published facenet model trained on the same data reaches 99.05%, so the surrogate is a "
-        "competent model, about one point weaker. Training accuracy reaching 97.4% while LFW accuracy levels off means the "
+        "competent model, about one point weaker. Training accuracy reaching 97.6% while LFW accuracy levels off means the "
         "last few epochs mostly fit the training set more tightly."
     ),
 ]
@@ -696,7 +698,7 @@ story += [
     ),
     P(
         "<b>Why might our surrogate be a weak attacker?</b> These are untested hypotheses: (1) <i>overfitting</i>: training "
-        "accuracy reached 97.4% while LFW accuracy plateaued, and we used the final epoch rather than the best; (2) <i>crop "
+        "accuracy reached 97.6% while LFW accuracy plateaued, although we kept the epoch that was best on held-out identities; (2) <i>crop "
         "geometry</i>: the surrogate aligns faces by landmarks, while casia and vggface2 use a box crop, so edits shaped "
         f"through one geometry may carry over worse to the other (ArcFace, which also uses landmark alignment, transfers "
         f"better to the surrogate, {pct(X(8.0, 'arcface', 'surrogate'))}, than to casia, {pct(X(8.0, 'arcface', 'casia'))}, "
@@ -836,9 +838,8 @@ story += [
         "edits transfer better, was not tried.<br/>"
         "• Seeds 1 and 2 were run with the surrogate as attacker only; the other attackers use seed 0. Seed spread for the "
         "surrogate is under 0.7 points, so this is unlikely to matter.<br/>"
-        "• The saved surrogate is the final epoch (98.12% clean LFW), not the best epoch (98.32%). Why it is a weak attacker "
-        "(overfitting, crop geometry, training budget) is untested; keeping the best checkpoint, or retraining with a box "
-        "crop, would test two of those.<br/>"
+        "• The saved surrogate is the best epoch on 500 held-out CASIA identities (98.28% clean LFW). Why it is a weak attacker "
+        "(overfitting, crop geometry, training budget) is untested; retraining with a box crop would test one of those.<br/>"
         f"• The original seed-0 sweep scored ArcFace with onnxruntime; all later runs use the PyTorch conversion. Both give "
         f"identical clean accuracy, and ArcFace's numbers agree across the three seeds to within "
         f"{100 * arc_seed_std:.2f} points.<br/>"

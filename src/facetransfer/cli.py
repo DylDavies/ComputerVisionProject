@@ -38,7 +38,7 @@ def _workspace(args):
 def cmd_train(args) -> None:
     from facetransfer.train import train
 
-    train(args.casia, _workspace(args), args.epochs, args.batch_size, args.lr, args.arch)
+    train(args.casia, _workspace(args), args.epochs, args.batch_size, args.lr, args.arch, args.holdout, args.patience)
 
 
 def cmd_validate(args) -> None:
@@ -100,6 +100,8 @@ def main() -> None:
     p.add_argument(
         "--arch", choices=list(SURROGATE_ARCHS), default="inception", help="resnet50 -> runs/surrogate_r50.pt"
     )
+    p.add_argument("--holdout", type=int, default=500, help="CASIA identities held out for validation (0 = none)")
+    p.add_argument("--patience", type=int, default=0, help="stop after N epochs without val gain (0 = off)")
     p.set_defaults(fn=cmd_train)
 
     p = sub.add_parser("validate", help="clean LFW accuracy per model vs published")
