@@ -25,7 +25,9 @@ from results import (
     off_diag_eps4,
     people,
     pg,
+    saved,
     ssim,
+    val,
     validate,
     xssim,
 )
@@ -51,9 +53,9 @@ V = {
     "npairs": "3,000",
     "nimages": f"{int(header[0]):,}",
     "nids": f"{int(header[1]):,}",
-    "final": p(epochs[-1][3], 2),
-    "best": p(best, 2),
-    "bestep": str([int(e[0]) + 1 for e in epochs if e[3] == best][0]),
+    "final": p(epochs[saved][3], 2),
+    "valacc": p(val[saved], 1),
+    "bestep": str(saved + 1),
     "trainacc": p(epochs[-1][2]),
     "maxgap": f"{100 * max(gaps):.2f}",
     "maxstd": f"{100 * max_seed_std.max():.2f}",
@@ -355,11 +357,11 @@ and original photo measures how visible the edit is.
 \section{Experimental Setup}
 LFW View~2 holds 6,000 fixed pairs in ten folds. We use the published pairs unchanged, with no corrections of
 our own. The surrogate was trained for 30 epochs on CASIA-WebFace~\cite{casia} (@nimages@ aligned images
-of @nids@ identities in our copy) with SGD (Nesterov momentum 0.9, weight decay $5\times10^{-4}$), a one-cycle
+of @nids@ identities in our copy, after holding out 500 identities for validation) with SGD (Nesterov momentum 0.9, weight decay $5\times10^{-4}$), a one-cycle
 schedule~\cite{onecycle} peaking at a
 learning rate of 0.1, batch size 256, bf16 mixed precision and random horizontal flips. Training took about
-1.5~hours on one RTX~5070~Ti. The final epoch reached @final@ clean LFW accuracy (best @best@, at epoch
-@bestep@), against the 99.05\% facenet-pytorch reports~\cite{facenetpytorch} for the pretrained \emph{casia} model
+1.5~hours on one RTX~5070~Ti. We kept the epoch (@bestep@) with the best verification accuracy on the held-out
+identities (@valacc@), never on LFW. It reached @final@ clean LFW accuracy, against the 99.05\% facenet-pytorch reports~\cite{facenetpytorch} for the pretrained \emph{casia} model
 trained on the same data.
 
 Because a misaligned crop lowers accuracy without any error, we checked every model against its published LFW
@@ -491,8 +493,8 @@ is barely touched by any of them. On the proposal's question of architecture aga
 architecture.
 
 We did not test why our surrogate is a weak attacker, but three explanations fit what we saw. It may overfit:
-training accuracy reached @trainacc@ while LFW accuracy levelled off, and we kept the final epoch rather than the
-best. Its crop geometry differs from the facenet models', which use a box crop; ArcFace, which shares the
+training accuracy reached @trainacc@ while LFW accuracy levelled off, even though we kept the epoch that was best on
+held-out identities. Its crop geometry differs from the facenet models', which use a box crop; ArcFace, which shares the
 landmark-based alignment, transfers better to the surrogate (@X8as@) than to \emph{casia} (@X8ac@) at
 $8/255$. It also had far less training than the pretrained models.
 

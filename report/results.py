@@ -21,6 +21,9 @@ epochs = [
     tuple(map(float, m))
     for m in re.findall(r"^epoch (\d+): loss (\S+) train acc (\S+) LFW (\S+) \+/- (\S+)", log, re.M)
 ]
+# Held-out-identity verification accuracy per epoch; train.py keeps the first maximum.
+val = [float(v) for v in re.findall(r"^epoch \d+: .* val (\S+) best", log, re.M)]
+saved = val.index(max(val))  # 0-based epoch of the saved surrogate
 header = re.search(r"(\d+) images, (\d+) identities, (\d+) steps/epoch", log).groups()
 
 MODELS = ["surrogate", "casia", "vggface2", "arcface", "lbph"]
