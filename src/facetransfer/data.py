@@ -98,10 +98,14 @@ class CasiaLoader:
     kernels on the default stream and corrupted the weights (NaN loss within a few steps).
     """
 
-    def __init__(self, root: Path, batch_size: int, device: str, threads: int = 16):
+    def __init__(self, root: Path, batch_size: int, device: str, threads: int = 16, holdout: int = 0, seed: int = 0):
         if not root.is_dir():
             raise SystemExit(f"CASIA-WebFace not found at {root}: expected {root}/<identity>/<image>.jpg (see README)")
-        self.classes = sorted(d.name for d in root.iterdir() if d.is_dir())
+        everyone = sorted(d.name for d in root.iterdir() if d.is_dir())
+        # `holdout` identities (fixed by seed) are never trained on: they form the open-set validation set.
+        held = set(np.random.default_rng(seed).permutation(everyone)[:holdout].tolist())
+        self.classes = [c for c in everyone if c not in held]
+        self.held, self.root = sorted(held), root
         self.paths, labels = [], []
         for label, name in enumerate(tqdm(self.classes, desc="scan")):
             files = sorted((root / name).glob("*.jpg"))
@@ -114,6 +118,26 @@ class CasiaLoader:
 
     def __len__(self) -> int:
         return len(self.paths) // self.batch_size  # drop the last partial batch
+
+    def val_set(self, per_id: int = 10, n_pairs: int = 3000, seed: int = 0):
+        """Held-out identities as fixed verification pairs: (images uint8 [N,3,112,112], a, b, same)."""
+        files, ids = [], []
+        for i, name in enumerate(self.held):
+            found = sorted((self.root / name).glob("*.jpg"))[:per_id]
+            files += [str(p) for p in found]
+            ids += [i] * len(found)
+        ids = np.array(ids)
+        rng = np.random.default_rng(seed)
+        # Same pairs: pick an image, then another image of the same identity (random draws almost never collide).
+        first = {i: np.flatnonzero(ids == i) for i in np.unique(ids)}
+        a_same = rng.choice(np.flatnonzero(np.bincount(ids)[ids] > 1), n_pairs)
+        b_same = np.array([rng.choice(first[ids[x]][first[ids[x]] != x]) for x in a_same])
+        a, b = rng.choice(len(ids), (2, n_pairs))
+        ok = ids[a] != ids[b]
+        a_diff, b_diff = a[ok], b[ok]
+        same = np.r_[np.ones(len(a_same), bool), np.zeros(len(a_diff), bool)]
+        images = torch.stack(list(self.readers.map(self._decode, files)))
+        return images, np.r_[a_same, a_diff], np.r_[b_same, b_diff], same
 
     @staticmethod
     def _decode(path: str) -> torch.Tensor:

@@ -6,7 +6,9 @@ from pathlib import Path
 import torch
 
 from facetransfer.evaluate import CONDITIONS
-from facetransfer.models import MODEL_NAMES
+from facetransfer.models import EXTRA_MODELS, MODEL_NAMES, SURROGATE_ARCHS
+
+ALL_MODELS = MODEL_NAMES + EXTRA_MODELS
 
 
 def cmd_prepare(args) -> None:
@@ -36,7 +38,7 @@ def _workspace(args):
 def cmd_train(args) -> None:
     from facetransfer.train import train
 
-    train(args.casia, _workspace(args), args.epochs, args.batch_size, args.lr)
+    train(args.casia, _workspace(args), args.epochs, args.batch_size, args.lr, args.arch, args.holdout, args.patience)
 
 
 def cmd_validate(args) -> None:
@@ -95,15 +97,20 @@ def main() -> None:
     p.add_argument("--epochs", type=int, default=30)
     p.add_argument("--batch-size", type=int, default=256)
     p.add_argument("--lr", type=float, default=0.1)
+    p.add_argument(
+        "--arch", choices=list(SURROGATE_ARCHS), default="inception", help="resnet50 -> runs/surrogate_r50.pt"
+    )
+    p.add_argument("--holdout", type=int, default=500, help="CASIA identities held out for validation (0 = none)")
+    p.add_argument("--patience", type=int, default=0, help="stop after N epochs without val gain (0 = off)")
     p.set_defaults(fn=cmd_train)
 
     p = sub.add_parser("validate", help="clean LFW accuracy per model vs published")
-    p.add_argument("--models", nargs="+", choices=MODEL_NAMES, default=list(MODEL_NAMES))
+    p.add_argument("--models", nargs="+", choices=ALL_MODELS, default=list(MODEL_NAMES))
     p.set_defaults(fn=cmd_validate)
 
     p = sub.add_parser("sweep", help="edit-budget sweep over all conditions")
-    p.add_argument("--models", nargs="+", choices=MODEL_NAMES, default=list(MODEL_NAMES))
-    p.add_argument("--attacker", choices=MODEL_NAMES, default="surrogate")
+    p.add_argument("--models", nargs="+", choices=ALL_MODELS, default=list(MODEL_NAMES))
+    p.add_argument("--attacker", choices=ALL_MODELS, default="surrogate")
     p.add_argument("--eps", nargs="+", type=float, default=[0, 0.5, 1, 2, 4, 8, 16], help="L-inf, in /255")
     p.add_argument("--jpeg", nargs="+", type=int, default=[90, 75, 50, 30])
     p.add_argument("--blur", nargs="+", type=float, default=[0.5, 1, 2, 3])

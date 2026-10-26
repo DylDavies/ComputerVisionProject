@@ -59,6 +59,20 @@ uv run python report/ieee.py
 cd report/ieee && latexmk -pdf paper.tex
 ```
 
+### Architecture control (ResNet-50 surrogate)
+
+A second surrogate with the same data, loss, crop and training recipe but a torchvision ResNet-50 backbone, so it
+differs from `surrogate` only in architecture. It is opt-in: `surrogate_r50` is not in the default `--models` list.
+
+```bash
+uv run ft train --arch resnet50 > runs/train_r50.log           # -> runs/surrogate_r50.pt
+uv run ft validate --models surrogate surrogate_r50
+uv run ft sweep --attacker surrogate_r50 --models surrogate surrogate_r50 casia vggface2 arcface lbph \
+    --conditions pgd --out runs/sweeps/attacker_surrogate_r50.csv
+uv run ft sweep --attacker surrogate --models surrogate_r50 --conditions pgd --out runs/sweeps/r50_target_surrogate.csv
+# ... and the same for --attacker casia / vggface2 / arcface, to score surrogate_r50 as a target
+```
+
 Smoke test without the surrogate: `uv run ft sweep --attacker vggface2 --models vggface2 casia --limit 100 --eps 0 8`.
 
 ## Design

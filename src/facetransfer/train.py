@@ -1,18 +1,36 @@
-"""Train the surrogate from scratch: InceptionResnetV1 + softmax cross-entropy on CASIA-WebFace.
+"""Train a surrogate from scratch with softmax cross-entropy on CASIA-WebFace.
 
-Same architecture and objective as the facenet-pytorch test models, so what separates the surrogate
-from test model 2 (CASIA) is only the random seed, and from test model 1 only the training faces.
+The default (`inception`) is InceptionResnetV1, the same architecture, objective and data as the facenet-pytorch
+CASIA test model; it differs from that model in crop and training procedure, and from the VGGFace2 model also in
+training faces. `resnet50` trains the same recipe with a torchvision ResNet-50 backbone, so the two surrogates
+differ only in architecture.
 """
 
 from pathlib import Path
 
 import torch
 import torch.nn.functional as F
-from facenet_pytorch import InceptionResnetV1
 
 from facetransfer.data import CasiaLoader
-from facetransfer.evaluate import Workspace, clean_accuracy
-from facetransfer.models import SURROGATE_SIZE, TorchFaceNet, surrogate_crop
+from facetransfer.evaluate import Workspace, best_threshold, clean_accuracy
+from facetransfer.models import SURROGATE_ARCHS, SURROGATE_SIZE, TorchFaceNet, surrogate_crop, surrogate_net
+
+
+@torch.no_grad()
+def val_accuracy(net, images_u8, a, b, same, device: str) -> float:
+    """Verification accuracy on held-out identities (threshold fitted on the same pairs, used only to rank epochs)."""
+    net.eval()
+    net.classify = False
+    emb = []
+    for s in range(0, len(images_u8), 256):
+        x = F.interpolate(images_u8[s : s + 256].to(device).float(), size=SURROGATE_SIZE, mode="bilinear")
+        with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=device.startswith("cuda")):
+            emb.append(
+                F.normalize(net(((x - 127.5) / 128).contiguous(memory_format=torch.channels_last)).float(), dim=-1)
+            )
+    emb = torch.cat(emb)
+    dist = (1 - (emb[a] * emb[b]).sum(-1)).cpu().numpy()
+    return float(((dist <= best_threshold(dist, same)) == same).mean())
 
 
 def train(
@@ -21,17 +39,23 @@ def train(
     epochs: int,
     batch_size: int,
     lr: float,
+    arch: str = "inception",
+    holdout: int = 500,
+    patience: int = 0,
 ) -> None:
     device = ws.device
-    loader = CasiaLoader(casia_dir, batch_size, device)
+    loader = CasiaLoader(casia_dir, batch_size, device, holdout=holdout)
+    val = loader.val_set() if holdout else None
     num_classes = len(loader.classes)
-    net = InceptionResnetV1(classify=True, num_classes=num_classes).to(device, memory_format=torch.channels_last)
+    name = SURROGATE_ARCHS[arch]
+    net = surrogate_net(arch, num_classes).to(device, memory_format=torch.channels_last)
     opt = torch.optim.SGD(net.parameters(), lr=lr, momentum=0.9, weight_decay=5e-4, nesterov=True)
     sched = torch.optim.lr_scheduler.OneCycleLR(opt, max_lr=lr, total_steps=epochs * len(loader), pct_start=0.05)
-    print(f"{len(loader.paths)} images, {num_classes} identities, {len(loader)} steps/epoch, {epochs} epochs")
+    print(f"{len(loader.paths)} images, {num_classes} identities, {len(loader)} steps/epoch, {epochs} epochs ({arch})")
 
     lfw_affines = torch.from_numpy(surrogate_crop(ws.meta, tuple(ws.images.shape[2:])))
     ws.runs_dir.mkdir(parents=True, exist_ok=True)
+    best, stale = -1.0, 0
     for epoch in range(epochs):
         net.train()
         net.classify = True
@@ -57,12 +81,22 @@ def train(
                 print(f"epoch {epoch} step {step}/{len(loader)} loss {loss.item():.3f}", flush=True)
 
         # TorchFaceNet flips the net to eval/embedding mode; restored at the top of the next epoch.
-        acc = clean_accuracy(TorchFaceNet("surrogate", net, SURROGATE_SIZE, None), lfw_affines, ws)
+        acc = clean_accuracy(TorchFaceNet(name, net, SURROGATE_SIZE, None), lfw_affines, ws)
         net.requires_grad_(True)
-        torch.save({"state_dict": net.state_dict(), "num_classes": num_classes}, ws.runs_dir / "surrogate.pt")
+        # Model selection uses the held-out CASIA identities, never LFW (the test set). With no holdout, keep the last.
+        score = val_accuracy(net, *val, device) if val else float(epoch)
+        if score > best:
+            best, stale = score, 0
+            ckpt = {"state_dict": net.state_dict(), "num_classes": num_classes, "arch": arch}
+            torch.save(ckpt, ws.runs_dir / f"{name}.pt")
+        else:
+            stale += 1
         total = len(loader) * batch_size
         print(
             f"epoch {epoch}: loss {loss_sum.item() / total:.3f} train acc {correct.item() / total:.3f} "
-            f"LFW {acc.mean():.4f} +/- {acc.std():.4f}",
+            f"LFW {acc.mean():.4f} +/- {acc.std():.4f} val {score:.4f} best {best:.4f}",
             flush=True,
         )
+        if patience and stale >= patience:
+            print(f"early stop: no val improvement for {patience} epochs", flush=True)
+            break

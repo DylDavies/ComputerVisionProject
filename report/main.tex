@@ -43,10 +43,10 @@
 We trained a face recognition network from scratch (the \textbf{surrogate}) and used projected gradient descent (PGD) against it to edit one photo in each of the 3,000 same-person pairs of the LFW View 2 benchmark. We then asked four models that were never used while editing whether they still recognise the pair as the same person.
 
 
-\textbf{Main finding.} The edits work almost perfectly on the model they were built against and transfer poorly to everything else. At an edit budget of $\varepsilon$ = 4/255, where the edited photo is still nearly identical to the original (SSIM 0.955), the surrogate stops matching 100.0\% of same-person pairs, but the other deep models lose only 4.8\% (casia), 1.4\% (vggface2) and 0.4\% (arcface). Random noise at the same budget does almost nothing to any deep model, so the effect comes from the optimisation, not from changing pixels. Repeating the sweep with two more random seeds changes no result by more than 0.69 percentage points (standard deviation).
+\textbf{Main finding.} The edits work almost perfectly on the model they were built against and transfer poorly to everything else. At an edit budget of $\varepsilon$ = 4/255, where the edited photo is still nearly identical to the original (SSIM 0.955), the surrogate stops matching 99.9\% of same-person pairs, but the other deep models lose only 6.3\% (casia), 1.7\% (vggface2) and 0.4\% (arcface). Random noise at the same budget does almost nothing to any deep model, so the effect comes from the optimisation, not from changing pixels. Repeating the sweep with two more random seeds changes no result by more than 0.75 percentage points (standard deviation).
 
 
-\textbf{Is it just our surrogate?} To check, we repeated the attack using each pretrained deep model as the attacker (Section 9). Our surrogate turns out to be the \emph{weakest} attacker of the four: at $\varepsilon$ = 8/255 its edits make casia lose 16.2\% of pairs, while edits built against vggface2 make casia lose 82.2\%. Edits transfer well \textbf{within the same architecture} (the three InceptionResnetV1 models) even when the training faces differ, while ArcFace, a different architecture, resists edits from every attacker (at most 18.8\%, even at a visible $\varepsilon$ = 16/255). So on the proposal's second question, the evidence points to \textbf{architecture} more than training data, and how well protection transfers depends heavily on which model the edit was built against.
+\textbf{Is it just our surrogate?} To check, we repeated the attack using each pretrained deep model as the attacker (Section 9). Our surrogate turns out to be the \emph{weakest} attacker of the four: at $\varepsilon$ = 8/255 its edits make casia lose 20.6\% of pairs, while edits built against vggface2 make casia lose 82.2\%. Edits transfer well \textbf{within the same architecture} (the three InceptionResnetV1 models) even when the training faces differ, while ArcFace, a different architecture, resists edits from every attacker (at most 18.8\%, even at a visible $\varepsilon$ = 16/255). So on the proposal's second question, the evidence points to \textbf{architecture} more than training data, and how well protection transfers depends heavily on which model the edit was built against.
 
 
 \needspace{8\baselineskip}\section{Context: the question and why it matters}
@@ -80,7 +80,7 @@ lbph & Test only & Local Binary Pattern Histograms & None (hand-crafted) & None 
 \textbf{Test data:} LFW View 2, the standard benchmark of 6,000 fixed pairs (3,000 same-person, 3,000 different-person) split into 10 folds, covering 7,701 distinct photos. We use the published pairs unchanged, including the six known mislabelled pairs, as the maintainers request. The MTCNN face detector found a face in all 7,701 photos.
 
 
-\textbf{Surrogate training data:} CASIA-WebFace, 490,623 images of 10,572 people, already aligned to 112$\times$112 pixels. LFW is too small to train on, so a separate dataset is needed; using CASIA means the surrogate shares its training faces with the casia test model, which is what lets us separate the effect of data from the effect of architecture.
+\textbf{Surrogate training data:} CASIA-WebFace, 465,498 images of 10,072 people, already aligned to 112$\times$112 pixels. LFW is too small to train on, so a separate dataset is needed; using CASIA means the surrogate shares its training faces with the casia test model, which is what lets us separate the effect of data from the effect of architecture.
 
 
 \needspace{6\baselineskip}\subsection{How each model sees a photo}
@@ -134,7 +134,7 @@ The proposal identified alignment as the main risk: if a model is fed faces crop
 \toprule
 \rowcolor{navy}\textcolor{white}{\textbf{Model}} & \textcolor{white}{\textbf{Clean LFW accuracy (ours)}} & \textcolor{white}{\textbf{$\pm$ std over folds}} & \textcolor{white}{\textbf{Published}} & \textcolor{white}{\textbf{Gap}} \\
 \midrule
-surrogate & 98.12\% & 0.63\% & --- & --- \\
+surrogate & 98.28\% & 0.61\% & --- & --- \\
 \rowcolor{zebra}casia & 98.73\% & 0.64\% & 99.05\% & -0.32 pts \\
 vggface2 & 99.37\% & 0.33\% & 99.65\% & -0.28 pts \\
 \rowcolor{zebra}arcface & 99.85\% & 0.17\% & 99.83\% & +0.02 pts \\
@@ -164,10 +164,10 @@ vggface2 & 99.00\% & 99.30\% & 99.37\% & 99.37\% \\
 
 \needspace{8\baselineskip}\section{Training the surrogate}
 
-The surrogate is an InceptionResnetV1 trained from random initialisation for 30 epochs on CASIA-WebFace (1,916 steps of 256 images per epoch), using softmax cross-entropy over the 10,572 identities, SGD with Nesterov momentum 0.9, weight decay 5e-4, a one-cycle learning-rate schedule peaking at 0.1, bf16 mixed precision and random horizontal flips. Using the same architecture and objective as the facenet test models is deliberate, so that the casia model differs from the surrogate only in its random starting weights. Training took about 1.5 hours on an RTX 5070 Ti.
+The surrogate is an InceptionResnetV1 trained from random initialisation for 30 epochs on CASIA-WebFace (1,818 steps of 256 images per epoch), using softmax cross-entropy over the 10,072 identities, SGD with Nesterov momentum 0.9, weight decay 5e-4, a one-cycle learning-rate schedule peaking at 0.1, bf16 mixed precision and random horizontal flips. Using the same architecture and objective as the facenet test models is deliberate, so that the casia model differs from the surrogate only in its random starting weights. Training took about 1.5 hours on an RTX 5070 Ti.
 
 
-After each epoch the network was evaluated on clean LFW View 2 with the same 10-fold protocol. The saved model is the final epoch.
+500 CASIA identities were held out of training and used as a validation set (fixed same-person and different-person pairs). After each epoch the network was scored on those pairs and on clean LFW View 2 (10-fold protocol). The saved model is the epoch with the best held-out accuracy (epoch 27); LFW played no part in the choice.
 
 
 \begin{center}\footnotesize
@@ -175,41 +175,41 @@ After each epoch the network was evaluated on clean LFW View 2 with the same 10-
 \toprule
 \rowcolor{navy}\textcolor{white}{\textbf{Epoch}} & \textcolor{white}{\textbf{Train loss}} & \textcolor{white}{\textbf{Train accuracy}} & \textcolor{white}{\textbf{Clean LFW accuracy}} & \textcolor{white}{\textbf{$\pm$ std}} \\
 \midrule
-1 & 7.875 & 3.7\% & 87.98\% & 1.57\% \\
-\rowcolor{zebra}2 & 4.187 & 33.4\% & 92.63\% & 1.32\% \\
-3 & 2.533 & 57.2\% & 94.47\% & 0.87\% \\
-\rowcolor{zebra}4 & 2.069 & 65.6\% & 94.97\% & 0.99\% \\
-5 & 1.853 & 69.8\% & 95.57\% & 0.81\% \\
-\rowcolor{zebra}6 & 1.727 & 72.2\% & 95.77\% & 1.05\% \\
-7 & 1.642 & 73.9\% & 96.27\% & 0.66\% \\
-\rowcolor{zebra}8 & 1.581 & 75.1\% & 95.80\% & 0.62\% \\
-9 & 1.529 & 76.1\% & 96.13\% & 1.09\% \\
-\rowcolor{zebra}10 & 1.487 & 77.0\% & 96.58\% & 0.79\% \\
-11 & 1.449 & 77.7\% & 97.27\% & 0.58\% \\
-\rowcolor{zebra}12 & 1.411 & 78.5\% & 96.32\% & 0.88\% \\
-13 & 1.375 & 79.2\% & 96.65\% & 0.93\% \\
-\rowcolor{zebra}14 & 1.341 & 80.0\% & 97.18\% & 0.65\% \\
-15 & 1.304 & 80.7\% & 97.30\% & 0.86\% \\
-\rowcolor{zebra}16 & 1.261 & 81.6\% & 96.27\% & 0.99\% \\
-17 & 1.218 & 82.4\% & 97.13\% & 0.85\% \\
-\rowcolor{zebra}18 & 1.174 & 83.3\% & 97.68\% & 0.77\% \\
-19 & 1.122 & 84.4\% & 97.65\% & 0.65\% \\
-\rowcolor{zebra}20 & 1.067 & 85.4\% & 97.18\% & 0.75\% \\
-21 & 1.007 & 86.5\% & 97.60\% & 0.64\% \\
-\rowcolor{zebra}22 & 0.942 & 87.8\% & 97.88\% & 0.81\% \\
-23 & 0.867 & 89.1\% & 97.90\% & 0.45\% \\
-\rowcolor{zebra}24 & 0.782 & 90.6\% & 97.75\% & 0.57\% \\
-25 & 0.689 & 92.0\% & 97.73\% & 0.55\% \\
-\rowcolor{zebra}26 & 0.585 & 93.5\% & 98.00\% & 0.56\% \\
-27 & 0.481 & 94.9\% & \cellcolor{hl}98.32\% & 0.49\% \\
-\rowcolor{zebra}28 & 0.384 & 96.1\% & 98.17\% & 0.55\% \\
-29 & 0.317 & 97.0\% & 98.20\% & 0.56\% \\
-\rowcolor{zebra}30 & 0.285 & 97.4\% & 98.12\% & 0.63\% \\
+1 & 7.754 & 4.3\% & 86.50\% & 1.45\% \\
+\rowcolor{zebra}2 & 4.090 & 34.5\% & 93.67\% & 1.05\% \\
+3 & 2.510 & 57.5\% & 94.65\% & 1.19\% \\
+\rowcolor{zebra}4 & 2.049 & 65.7\% & 95.75\% & 0.64\% \\
+5 & 1.844 & 69.8\% & 95.83\% & 0.93\% \\
+\rowcolor{zebra}6 & 1.717 & 72.2\% & 95.65\% & 0.77\% \\
+7 & 1.625 & 74.1\% & 96.22\% & 0.53\% \\
+\rowcolor{zebra}8 & 1.561 & 75.3\% & 96.70\% & 0.74\% \\
+9 & 1.506 & 76.3\% & 95.92\% & 1.11\% \\
+\rowcolor{zebra}10 & 1.463 & 77.2\% & 96.53\% & 0.67\% \\
+11 & 1.422 & 78.1\% & 96.22\% & 0.97\% \\
+\rowcolor{zebra}12 & 1.385 & 78.8\% & 96.28\% & 0.72\% \\
+13 & 1.348 & 79.6\% & 95.72\% & 0.96\% \\
+\rowcolor{zebra}14 & 1.311 & 80.3\% & 96.53\% & 0.90\% \\
+15 & 1.272 & 81.1\% & 96.72\% & 0.71\% \\
+\rowcolor{zebra}16 & 1.235 & 81.9\% & 96.78\% & 0.79\% \\
+17 & 1.192 & 82.7\% & 96.83\% & 0.82\% \\
+\rowcolor{zebra}18 & 1.148 & 83.6\% & 96.93\% & 0.59\% \\
+19 & 1.096 & 84.6\% & 97.12\% & 0.80\% \\
+\rowcolor{zebra}20 & 1.043 & 85.6\% & 97.63\% & 0.56\% \\
+21 & 0.981 & 86.9\% & 97.00\% & 0.71\% \\
+\rowcolor{zebra}22 & 0.913 & 88.1\% & 97.57\% & 0.66\% \\
+23 & 0.838 & 89.4\% & 97.57\% & 0.73\% \\
+\rowcolor{zebra}24 & 0.755 & 90.8\% & 98.18\% & 0.65\% \\
+25 & 0.659 & 92.3\% & 97.63\% & 0.59\% \\
+\rowcolor{zebra}26 & 0.558 & 93.8\% & 98.17\% & 0.61\% \\
+27 & 0.453 & 95.2\% & 98.28\% & 0.61\% \\
+\rowcolor{zebra}28 & 0.360 & 96.4\% & \cellcolor{hl}98.30\% & 0.69\% \\
+29 & 0.296 & 97.2\% & 98.28\% & 0.57\% \\
+\rowcolor{zebra}30 & 0.266 & 97.6\% & 98.28\% & 0.59\% \\
 \bottomrule
 \end{tabular}
 \end{center}
 
-Clean LFW accuracy rose from 87.98\% after one epoch to 98.12\% after 30 (best 98.32\% in epoch 27, highlighted). For comparison, the published facenet model trained on the same data reaches 99.05\%, so the surrogate is a competent model, about one point weaker. Training accuracy reaching 97.4\% while LFW accuracy levels off means the last few epochs mostly fit the training set more tightly.
+Clean LFW accuracy rose from 86.50\% after one epoch to 98.28\% after 30 (best 98.30\% in epoch 28, highlighted). For comparison, the published facenet model trained on the same data reaches 99.05\%, so the surrogate is a competent model, about one point weaker. Training accuracy reaching 97.6\% while LFW accuracy levels off means the last few epochs mostly fit the training set more tightly.
 
 
 \clearpage
@@ -224,13 +224,13 @@ The table below is the core result of the project. Each cell is the share of the
 \toprule
 \rowcolor{navy}\textcolor{white}{\textbf{Edit budget $\varepsilon$}} & \textcolor{white}{\textbf{surrogate}} & \textcolor{white}{\textbf{casia}} & \textcolor{white}{\textbf{vggface2}} & \textcolor{white}{\textbf{arcface}} & \textcolor{white}{\textbf{lbph}} & \textcolor{white}{\textbf{SSIM}} \\
 \midrule
-0/255 & 2.6\% $\pm$ 1.5\% & 1.8\% $\pm$ 1.4\% & 0.8\% $\pm$ 0.7\% & 0.3\% $\pm$ 0.4\% & 47.2\% $\pm$ 2.1\% & 1.000 \\
-\rowcolor{zebra}0.5/255 & 6.1\% $\pm$ 2.1\% & 1.9\% $\pm$ 1.4\% & 0.8\% $\pm$ 0.7\% & 0.3\% $\pm$ 0.4\% & 45.4\% $\pm$ 1.8\% & 0.999 \\
-1/255 & 20.6\% $\pm$ 4.5\% & 2.1\% $\pm$ 1.4\% & 0.8\% $\pm$ 0.7\% & 0.3\% $\pm$ 0.4\% & 42.8\% $\pm$ 1.9\% & 0.996 \\
-\rowcolor{zebra}2/255 & 84.8\% $\pm$ 2.9\% & 2.6\% $\pm$ 1.7\% & 1.0\% $\pm$ 0.8\% & 0.3\% $\pm$ 0.4\% & 40.4\% $\pm$ 2.1\% & 0.987 \\
-4/255 & 100.0\% $\pm$ 0.0\% & 4.8\% $\pm$ 2.0\% & 1.4\% $\pm$ 0.9\% & 0.4\% $\pm$ 0.5\% & 39.0\% $\pm$ 2.2\% & 0.955 \\
-\rowcolor{zebra}8/255 & 100.0\% $\pm$ 0.0\% & 16.2\% $\pm$ 2.6\% & 3.3\% $\pm$ 1.6\% & 0.5\% $\pm$ 0.5\% & 44.5\% $\pm$ 2.8\% & 0.860 \\
-16/255 & 100.0\% $\pm$ 0.0\% & 51.2\% $\pm$ 4.1\% & 12.0\% $\pm$ 2.6\% & 0.9\% $\pm$ 0.7\% & 65.4\% $\pm$ 2.1\% & 0.660 \\
+0/255 & 2.0\% $\pm$ 1.2\% & 1.8\% $\pm$ 1.4\% & 0.8\% $\pm$ 0.7\% & 0.3\% $\pm$ 0.4\% & 47.2\% $\pm$ 2.1\% & 1.000 \\
+\rowcolor{zebra}0.5/255 & 5.1\% $\pm$ 1.8\% & 1.9\% $\pm$ 1.4\% & 0.9\% $\pm$ 0.7\% & 0.3\% $\pm$ 0.4\% & 45.1\% $\pm$ 1.7\% & 0.999 \\
+1/255 & 14.6\% $\pm$ 2.5\% & 2.1\% $\pm$ 1.2\% & 0.9\% $\pm$ 0.9\% & 0.3\% $\pm$ 0.4\% & 42.9\% $\pm$ 2.0\% & 0.996 \\
+\rowcolor{zebra}2/255 & 75.1\% $\pm$ 3.1\% & 2.6\% $\pm$ 1.4\% & 1.0\% $\pm$ 0.9\% & 0.3\% $\pm$ 0.5\% & 40.4\% $\pm$ 2.2\% & 0.986 \\
+4/255 & 99.9\% $\pm$ 0.1\% & 6.3\% $\pm$ 2.0\% & 1.7\% $\pm$ 1.0\% & 0.4\% $\pm$ 0.5\% & 39.0\% $\pm$ 1.9\% & 0.955 \\
+\rowcolor{zebra}8/255 & 100.0\% $\pm$ 0.0\% & 20.6\% $\pm$ 2.9\% & 3.5\% $\pm$ 1.6\% & 0.5\% $\pm$ 0.5\% & 44.9\% $\pm$ 2.3\% & 0.860 \\
+16/255 & 100.0\% $\pm$ 0.0\% & 60.7\% $\pm$ 4.0\% & 14.6\% $\pm$ 2.3\% & 1.0\% $\pm$ 0.7\% & 65.6\% $\pm$ 2.0\% & 0.659 \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -242,16 +242,16 @@ The table below is the core result of the project. Each cell is the share of the
 
 \needspace{6\baselineskip}\subsection{What the numbers say}
 
-\textbf{The edit works on the model it was built against, and quickly.} The surrogate goes from a 2.6\% baseline to 20.6\% at $\varepsilon$ = 1/255, 84.8\% at 2/255 and 100.0\% from 4/255 upward. At 2/255 the edit is essentially invisible (SSIM 0.987).
+\textbf{The edit works on the model it was built against, and quickly.} The surrogate goes from a 2.0\% baseline to 14.6\% at $\varepsilon$ = 1/255, 75.1\% at 2/255 and 99.9\% from 4/255 upward. At 2/255 the edit is essentially invisible (SSIM 0.986).
 
 
-\textbf{The edit barely transfers at invisible budgets.} At $\varepsilon$ = 4/255 (SSIM 0.955), every test deep model stays within a few points of its baseline: casia 1.8\% $\to$ 4.8\%, vggface2 0.8\% $\to$ 1.4\%, arcface 0.3\% $\to$ 0.4\%. A photo that is fully protected against the surrogate is still recognised by every other deep model about 95\% of the time or more.
+\textbf{The edit barely transfers at invisible budgets.} At $\varepsilon$ = 4/255 (SSIM 0.955), every test deep model stays within a few points of its baseline: casia 1.8\% $\to$ 6.3\%, vggface2 0.8\% $\to$ 1.7\%, arcface 0.3\% $\to$ 0.4\%. A photo that is fully protected against the surrogate is still recognised by every other deep model about 95\% of the time or more.
 
 
-\textbf{With our surrogate as attacker, shared training data looks decisive.} casia and vggface2 have the same architecture and objective; the only difference is that casia was trained on the same faces as the surrogate. At $\varepsilon$ = 16/255 casia loses 51.2\% of pairs while vggface2 loses 12.0\%, about four times less (at $\varepsilon$ = 8/255: 16.2\% vs 3.3\%). Changing architecture, objective and data together (arcface) removes transfer almost entirely: 0.9\% at $\varepsilon$ = 16/255. \emph{Section 9 shows this reading does not hold once other models are used as the attacker.}
+\textbf{With our surrogate as attacker, shared training data looks decisive.} casia and vggface2 have the same architecture and objective; the only difference is that casia was trained on the same faces as the surrogate. At $\varepsilon$ = 16/255 casia loses 60.7\% of pairs while vggface2 loses 14.6\%, about four times less (at $\varepsilon$ = 8/255: 20.6\% vs 3.5\%). Changing architecture, objective and data together (arcface) removes transfer almost entirely: 1.0\% at $\varepsilon$ = 16/255. \emph{Section 9 shows this reading does not hold once other models are used as the attacker.}
 
 
-\textbf{Visible edits are needed before anything transfers.} The only substantial transfer (casia, 51.2\%) happens at $\varepsilon$ = 16/255, where SSIM has dropped to 0.660 and the edit is clearly visible. So in our setting, an edit that is invisible is not transferable, and an edit that transfers is not invisible.
+\textbf{Visible edits are needed before anything transfers.} The only substantial transfer (casia, 60.7\%) happens at $\varepsilon$ = 16/255, where SSIM has dropped to 0.659 and the edit is clearly visible. So in our setting, an edit that is invisible is not transferable, and an edit that transfers is not invisible.
 
 
 \clearpage
@@ -268,18 +268,18 @@ Random noise changes every pixel by exactly $\pm$$\varepsilon$, the same maximum
 \toprule
 \rowcolor{navy}\textcolor{white}{\textbf{Noise budget $\varepsilon$}} & \textcolor{white}{\textbf{surrogate}} & \textcolor{white}{\textbf{casia}} & \textcolor{white}{\textbf{vggface2}} & \textcolor{white}{\textbf{arcface}} & \textcolor{white}{\textbf{lbph}} & \textcolor{white}{\textbf{SSIM}} \\
 \midrule
-0/255 & 2.6\% $\pm$ 1.5\% & 1.8\% $\pm$ 1.4\% & 0.8\% $\pm$ 0.7\% & 0.3\% $\pm$ 0.4\% & 47.2\% $\pm$ 2.1\% & 1.000 \\
-\rowcolor{zebra}0.5/255 & 2.6\% $\pm$ 1.6\% & 1.8\% $\pm$ 1.4\% & 0.8\% $\pm$ 0.7\% & 0.3\% $\pm$ 0.4\% & 45.2\% $\pm$ 2.1\% & 0.997 \\
-1/255 & 2.5\% $\pm$ 1.4\% & 1.9\% $\pm$ 1.4\% & 0.8\% $\pm$ 0.7\% & 0.3\% $\pm$ 0.4\% & 43.7\% $\pm$ 2.1\% & 0.992 \\
-\rowcolor{zebra}2/255 & 2.7\% $\pm$ 1.5\% & 1.8\% $\pm$ 1.4\% & 0.8\% $\pm$ 0.8\% & 0.3\% $\pm$ 0.4\% & 42.4\% $\pm$ 2.0\% & 0.969 \\
-4/255 & 2.9\% $\pm$ 1.7\% & 2.0\% $\pm$ 1.4\% & 0.8\% $\pm$ 0.8\% & 0.3\% $\pm$ 0.4\% & 47.3\% $\pm$ 2.3\% & 0.893 \\
-\rowcolor{zebra}8/255 & 3.6\% $\pm$ 2.0\% & 2.4\% $\pm$ 1.4\% & 0.9\% $\pm$ 0.7\% & 0.3\% $\pm$ 0.4\% & 65.4\% $\pm$ 2.6\% & 0.713 \\
-16/255 & 7.4\% $\pm$ 2.4\% & 4.3\% $\pm$ 1.6\% & 1.4\% $\pm$ 0.6\% & 0.4\% $\pm$ 0.5\% & 90.1\% $\pm$ 2.0\% & 0.462 \\
+0/255 & 2.0\% $\pm$ 1.2\% & 1.8\% $\pm$ 1.4\% & 0.8\% $\pm$ 0.7\% & 0.3\% $\pm$ 0.4\% & 47.2\% $\pm$ 2.1\% & 1.000 \\
+\rowcolor{zebra}0.5/255 & 2.1\% $\pm$ 1.2\% & 1.8\% $\pm$ 1.4\% & 0.8\% $\pm$ 0.7\% & 0.3\% $\pm$ 0.4\% & 45.2\% $\pm$ 2.1\% & 0.997 \\
+1/255 & 2.0\% $\pm$ 1.3\% & 1.9\% $\pm$ 1.4\% & 0.8\% $\pm$ 0.7\% & 0.3\% $\pm$ 0.4\% & 43.7\% $\pm$ 2.1\% & 0.992 \\
+\rowcolor{zebra}2/255 & 2.1\% $\pm$ 1.2\% & 1.8\% $\pm$ 1.4\% & 0.8\% $\pm$ 0.8\% & 0.3\% $\pm$ 0.4\% & 42.4\% $\pm$ 2.0\% & 0.969 \\
+4/255 & 2.4\% $\pm$ 1.0\% & 2.0\% $\pm$ 1.4\% & 0.8\% $\pm$ 0.8\% & 0.3\% $\pm$ 0.4\% & 47.3\% $\pm$ 2.3\% & 0.893 \\
+\rowcolor{zebra}8/255 & 2.8\% $\pm$ 1.1\% & 2.4\% $\pm$ 1.4\% & 0.9\% $\pm$ 0.7\% & 0.3\% $\pm$ 0.4\% & 65.4\% $\pm$ 2.6\% & 0.713 \\
+16/255 & 6.6\% $\pm$ 1.6\% & 4.3\% $\pm$ 1.6\% & 1.4\% $\pm$ 0.6\% & 0.4\% $\pm$ 0.5\% & 90.1\% $\pm$ 2.0\% & 0.462 \\
 \bottomrule
 \end{tabular}
 \end{center}
 
-Noise does almost nothing to any deep model. Even at $\varepsilon$ = 16/255, where noise is more visible than PGD (SSIM 0.462 vs 0.660), the surrogate only reaches 7.4\% against 100.0\% for PGD, and casia 4.3\% against 51.2\%. The PGD effect, and the transfer to casia, therefore come from the optimisation itself.
+Noise does almost nothing to any deep model. Even at $\varepsilon$ = 16/255, where noise is more visible than PGD (SSIM 0.462 vs 0.659), the surrogate only reaches 6.6\% against 100.0\% for PGD, and casia 4.3\% against 60.7\%. The PGD effect, and the transfer to casia, therefore come from the optimisation itself.
 
 
 \needspace{6\baselineskip}\subsection{JPEG compression after editing}
@@ -292,18 +292,18 @@ Photos are usually recompressed when uploaded. Here the PGD-edited photo is save
 \toprule
 \rowcolor{navy}\textcolor{white}{\textbf{Edit budget $\varepsilon$}} & \textcolor{white}{\textbf{surrogate}} & \textcolor{white}{\textbf{casia}} & \textcolor{white}{\textbf{vggface2}} & \textcolor{white}{\textbf{arcface}} & \textcolor{white}{\textbf{lbph}} & \textcolor{white}{\textbf{SSIM}} \\
 \midrule
-0/255 & 2.6\% $\pm$ 1.8\% & 1.9\% $\pm$ 1.4\% & 0.8\% $\pm$ 0.7\% & 0.3\% $\pm$ 0.4\% & 48.3\% $\pm$ 2.2\% & 0.973 \\
-\rowcolor{zebra}0.5/255 & 4.0\% $\pm$ 1.9\% & 2.1\% $\pm$ 1.4\% & 0.8\% $\pm$ 0.7\% & 0.3\% $\pm$ 0.4\% & 45.6\% $\pm$ 1.4\% & 0.973 \\
-1/255 & 8.2\% $\pm$ 4.0\% & 2.1\% $\pm$ 1.4\% & 0.9\% $\pm$ 0.8\% & 0.3\% $\pm$ 0.4\% & 42.7\% $\pm$ 1.7\% & 0.972 \\
-\rowcolor{zebra}2/255 & 39.1\% $\pm$ 6.3\% & 2.7\% $\pm$ 1.5\% & 0.9\% $\pm$ 0.8\% & 0.3\% $\pm$ 0.4\% & 39.6\% $\pm$ 1.8\% & 0.968 \\
-4/255 & 97.1\% $\pm$ 1.0\% & 4.5\% $\pm$ 1.7\% & 1.3\% $\pm$ 0.9\% & 0.4\% $\pm$ 0.5\% & 36.5\% $\pm$ 1.9\% & 0.960 \\
-\rowcolor{zebra}8/255 & 100.0\% $\pm$ 0.0\% & 12.3\% $\pm$ 2.8\% & 2.9\% $\pm$ 1.5\% & 0.5\% $\pm$ 0.5\% & 35.7\% $\pm$ 2.2\% & 0.928 \\
-16/255 & 100.0\% $\pm$ 0.0\% & 43.2\% $\pm$ 4.0\% & 10.1\% $\pm$ 2.0\% & 0.8\% $\pm$ 0.7\% & 48.5\% $\pm$ 2.5\% & 0.820 \\
+0/255 & 2.3\% $\pm$ 1.2\% & 1.9\% $\pm$ 1.4\% & 0.8\% $\pm$ 0.7\% & 0.3\% $\pm$ 0.4\% & 48.3\% $\pm$ 2.2\% & 0.973 \\
+\rowcolor{zebra}0.5/255 & 3.5\% $\pm$ 1.6\% & 2.1\% $\pm$ 1.4\% & 0.8\% $\pm$ 0.7\% & 0.3\% $\pm$ 0.4\% & 44.9\% $\pm$ 2.2\% & 0.973 \\
+1/255 & 6.3\% $\pm$ 2.2\% & 2.1\% $\pm$ 1.4\% & 0.9\% $\pm$ 0.9\% & 0.3\% $\pm$ 0.4\% & 42.8\% $\pm$ 1.7\% & 0.972 \\
+\rowcolor{zebra}2/255 & 32.3\% $\pm$ 4.3\% & 2.7\% $\pm$ 1.4\% & 1.1\% $\pm$ 0.9\% & 0.3\% $\pm$ 0.4\% & 39.6\% $\pm$ 1.7\% & 0.968 \\
+4/255 & 96.0\% $\pm$ 1.7\% & 5.5\% $\pm$ 1.8\% & 1.6\% $\pm$ 1.0\% & 0.4\% $\pm$ 0.5\% & 36.6\% $\pm$ 2.0\% & 0.959 \\
+\rowcolor{zebra}8/255 & 100.0\% $\pm$ 0.0\% & 15.1\% $\pm$ 2.6\% & 3.0\% $\pm$ 1.1\% & 0.4\% $\pm$ 0.5\% & 36.8\% $\pm$ 2.3\% & 0.928 \\
+16/255 & 100.0\% $\pm$ 0.0\% & 51.8\% $\pm$ 4.2\% & 12.6\% $\pm$ 2.4\% & 0.8\% $\pm$ 0.8\% & 48.9\% $\pm$ 2.9\% & 0.819 \\
 \bottomrule
 \end{tabular}
 \end{center}
 
-Compression weakens small edits but does not remove larger ones. Against the surrogate, at $\varepsilon$ = 2/255 it cuts the unmatched share from 84.8\% to 39.1\%; at $\varepsilon$ = 4/255 the edit survives (97.1\%) and from 8/255 it is unaffected. Transfer to casia at $\varepsilon$ = 16/255 drops slightly, from 51.2\% to 43.2\%.
+Compression weakens small edits but does not remove larger ones. Against the surrogate, at $\varepsilon$ = 2/255 it cuts the unmatched share from 75.1\% to 32.3\%; at $\varepsilon$ = 4/255 the edit survives (96.0\%) and from 8/255 it is unaffected. Transfer to casia at $\varepsilon$ = 16/255 drops slightly, from 60.7\% to 51.8\%.
 
 
 \begin{figure}[H]\centering
@@ -323,10 +323,10 @@ These are things any user could do without special tools. They are applied to th
 \toprule
 \rowcolor{navy}\textcolor{white}{\textbf{JPEG quality}} & \textcolor{white}{\textbf{surrogate}} & \textcolor{white}{\textbf{casia}} & \textcolor{white}{\textbf{vggface2}} & \textcolor{white}{\textbf{arcface}} & \textcolor{white}{\textbf{lbph}} & \textcolor{white}{\textbf{SSIM}} \\
 \midrule
-30 & 3.4\% $\pm$ 1.9\% & 2.0\% $\pm$ 1.3\% & 0.8\% $\pm$ 0.8\% & 0.3\% $\pm$ 0.4\% & 54.9\% $\pm$ 2.5\% & 0.927 \\
-\rowcolor{zebra}50 & 2.8\% $\pm$ 1.6\% & 1.9\% $\pm$ 1.4\% & 0.8\% $\pm$ 0.8\% & 0.3\% $\pm$ 0.4\% & 49.2\% $\pm$ 2.0\% & 0.952 \\
-75 & 2.6\% $\pm$ 1.8\% & 1.9\% $\pm$ 1.4\% & 0.8\% $\pm$ 0.7\% & 0.3\% $\pm$ 0.4\% & 48.3\% $\pm$ 2.2\% & 0.973 \\
-\rowcolor{zebra}90 & 2.6\% $\pm$ 1.5\% & 1.8\% $\pm$ 1.4\% & 0.8\% $\pm$ 0.7\% & 0.3\% $\pm$ 0.4\% & 47.2\% $\pm$ 2.2\% & 0.999 \\
+30 & 2.1\% $\pm$ 1.4\% & 2.0\% $\pm$ 1.3\% & 0.8\% $\pm$ 0.8\% & 0.3\% $\pm$ 0.4\% & 54.9\% $\pm$ 2.5\% & 0.927 \\
+\rowcolor{zebra}50 & 2.3\% $\pm$ 1.1\% & 1.9\% $\pm$ 1.4\% & 0.8\% $\pm$ 0.8\% & 0.3\% $\pm$ 0.4\% & 49.2\% $\pm$ 2.0\% & 0.952 \\
+75 & 2.3\% $\pm$ 1.2\% & 1.9\% $\pm$ 1.4\% & 0.8\% $\pm$ 0.7\% & 0.3\% $\pm$ 0.4\% & 48.3\% $\pm$ 2.2\% & 0.973 \\
+\rowcolor{zebra}90 & 2.0\% $\pm$ 1.2\% & 1.8\% $\pm$ 1.4\% & 0.8\% $\pm$ 0.7\% & 0.3\% $\pm$ 0.4\% & 47.2\% $\pm$ 2.2\% & 0.999 \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -336,15 +336,15 @@ These are things any user could do without special tools. They are applied to th
 \toprule
 \rowcolor{navy}\textcolor{white}{\textbf{Blur $\sigma$ (px)}} & \textcolor{white}{\textbf{surrogate}} & \textcolor{white}{\textbf{casia}} & \textcolor{white}{\textbf{vggface2}} & \textcolor{white}{\textbf{arcface}} & \textcolor{white}{\textbf{lbph}} & \textcolor{white}{\textbf{SSIM}} \\
 \midrule
-0.5 & 2.5\% $\pm$ 1.5\% & 1.8\% $\pm$ 1.4\% & 0.8\% $\pm$ 0.8\% & 0.3\% $\pm$ 0.4\% & 52.6\% $\pm$ 3.0\% & 0.996 \\
-\rowcolor{zebra}1 & 2.9\% $\pm$ 1.9\% & 2.1\% $\pm$ 1.2\% & 0.9\% $\pm$ 0.7\% & 0.3\% $\pm$ 0.4\% & 77.2\% $\pm$ 2.2\% & 0.965 \\
-2 & 7.9\% $\pm$ 2.9\% & 5.2\% $\pm$ 1.6\% & 2.1\% $\pm$ 1.1\% & 0.3\% $\pm$ 0.4\% & 97.4\% $\pm$ 0.7\% & 0.876 \\
-\rowcolor{zebra}3 & 22.2\% $\pm$ 5.5\% & 16.6\% $\pm$ 2.6\% & 6.8\% $\pm$ 2.1\% & 0.7\% $\pm$ 0.5\% & 99.6\% $\pm$ 0.2\% & 0.790 \\
+0.5 & 2.2\% $\pm$ 1.3\% & 1.8\% $\pm$ 1.4\% & 0.8\% $\pm$ 0.8\% & 0.3\% $\pm$ 0.4\% & 52.6\% $\pm$ 3.0\% & 0.996 \\
+\rowcolor{zebra}1 & 2.6\% $\pm$ 1.3\% & 2.1\% $\pm$ 1.2\% & 0.9\% $\pm$ 0.7\% & 0.3\% $\pm$ 0.4\% & 77.2\% $\pm$ 2.2\% & 0.965 \\
+2 & 6.1\% $\pm$ 2.1\% & 5.2\% $\pm$ 1.6\% & 2.1\% $\pm$ 1.1\% & 0.3\% $\pm$ 0.4\% & 97.4\% $\pm$ 0.7\% & 0.876 \\
+\rowcolor{zebra}3 & 21.3\% $\pm$ 4.8\% & 16.6\% $\pm$ 2.6\% & 6.8\% $\pm$ 2.1\% & 0.7\% $\pm$ 0.5\% & 99.6\% $\pm$ 0.2\% & 0.790 \\
 \bottomrule
 \end{tabular}
 \end{center}
 
-JPEG compression, even at quality 30, leaves the deep models essentially unaffected (surrogate 3.4\%, casia 2.0\%). Blur starts to matter only when strong: at $\sigma$ = 3 pixels (SSIM 0.790) the surrogate loses 22.2\% and casia 16.6\%, while arcface stays at 0.7\%. Free edits are not a substitute for an optimised edit.
+JPEG compression, even at quality 30, leaves the deep models essentially unaffected (surrogate 2.1\%, casia 2.0\%). Blur starts to matter only when strong: at $\sigma$ = 3 pixels (SSIM 0.790) the surrogate loses 21.3\% and casia 16.6\%, while arcface stays at 0.7\%. Free edits are not a substitute for an optimised edit.
 
 
 \begin{figure}[H]\centering
@@ -364,18 +364,18 @@ The seed controls PGD's random starting point and the random-noise baseline, so 
 \toprule
 \rowcolor{navy}\textcolor{white}{\textbf{Edit budget $\varepsilon$}} & \textcolor{white}{\textbf{surrogate}} & \textcolor{white}{\textbf{casia}} & \textcolor{white}{\textbf{vggface2}} & \textcolor{white}{\textbf{arcface}} & \textcolor{white}{\textbf{lbph}} \\
 \midrule
-0/255 & 2.63\% $\pm$ 0.00 & 1.83\% $\pm$ 0.00 & 0.77\% $\pm$ 0.00 & 0.27\% $\pm$ 0.00 & 47.17\% $\pm$ 0.00 \\
-\rowcolor{zebra}0.5/255 & 5.98\% $\pm$ 0.13 & 1.90\% $\pm$ 0.07 & 0.77\% $\pm$ 0.03 & 0.29\% $\pm$ 0.02 & 45.32\% $\pm$ 0.11 \\
-1/255 & 20.34\% $\pm$ 0.36 & 2.10\% $\pm$ 0.06 & 0.78\% $\pm$ 0.07 & 0.32\% $\pm$ 0.02 & 43.10\% $\pm$ 0.27 \\
-\rowcolor{zebra}2/255 & 84.08\% $\pm$ 0.69 & 2.72\% $\pm$ 0.12 & 0.93\% $\pm$ 0.06 & 0.36\% $\pm$ 0.02 & 40.63\% $\pm$ 0.18 \\
-4/255 & 100.00\% $\pm$ 0.00 & 4.94\% $\pm$ 0.13 & 1.44\% $\pm$ 0.05 & 0.40\% $\pm$ 0.03 & 39.06\% $\pm$ 0.23 \\
-\rowcolor{zebra}8/255 & 100.00\% $\pm$ 0.00 & 15.90\% $\pm$ 0.23 & 3.29\% $\pm$ 0.13 & 0.49\% $\pm$ 0.04 & 44.44\% $\pm$ 0.13 \\
-16/255 & 100.00\% $\pm$ 0.00 & 50.93\% $\pm$ 0.38 & 11.70\% $\pm$ 0.31 & 1.06\% $\pm$ 0.13 & 65.18\% $\pm$ 0.29 \\
+0/255 & 2.03\% $\pm$ 0.00 & 1.83\% $\pm$ 0.00 & 0.77\% $\pm$ 0.00 & 0.27\% $\pm$ 0.00 & 47.17\% $\pm$ 0.00 \\
+\rowcolor{zebra}0.5/255 & 4.56\% $\pm$ 0.45 & 1.89\% $\pm$ 0.05 & 0.82\% $\pm$ 0.04 & 0.29\% $\pm$ 0.02 & 45.21\% $\pm$ 0.13 \\
+1/255 & 14.24\% $\pm$ 0.32 & 2.04\% $\pm$ 0.10 & 0.82\% $\pm$ 0.10 & 0.31\% $\pm$ 0.02 & 42.91\% $\pm$ 0.02 \\
+\rowcolor{zebra}2/255 & 74.29\% $\pm$ 0.74 & 2.86\% $\pm$ 0.36 & 0.94\% $\pm$ 0.07 & 0.34\% $\pm$ 0.02 & 40.47\% $\pm$ 0.09 \\
+4/255 & 99.97\% $\pm$ 0.03 & 6.18\% $\pm$ 0.19 & 1.62\% $\pm$ 0.04 & 0.39\% $\pm$ 0.02 & 39.06\% $\pm$ 0.13 \\
+\rowcolor{zebra}8/255 & 100.00\% $\pm$ 0.00 & 20.10\% $\pm$ 0.67 & 3.76\% $\pm$ 0.22 & 0.48\% $\pm$ 0.02 & 44.93\% $\pm$ 0.07 \\
+16/255 & 100.00\% $\pm$ 0.00 & 60.00\% $\pm$ 0.75 & 14.31\% $\pm$ 0.28 & 1.00\% $\pm$ 0.06 & 65.51\% $\pm$ 0.16 \\
 \bottomrule
 \end{tabular}
 \end{center}
 
-Largest standard deviation across seeds for each condition: blur 0.00 pts, jpeg 0.00 pts, noise 0.33 pts, pgd 0.69 pts, pgd+jpeg75 0.55 pts. JPEG and blur involve no randomness, so they are identical across seeds. Every result in this document is reproducible to well under one percentage point; the differences between models are far larger than seed noise.
+Largest standard deviation across seeds for each condition: blur 0.00 pts, jpeg 0.00 pts, noise 0.33 pts, pgd 0.75 pts, pgd+jpeg75 0.43 pts. JPEG and blur involve no randomness, so they are identical across seeds. Every result in this document is reproducible to well under one percentage point; the differences between models are far larger than seed noise.
 
 
 \needspace{8\baselineskip}\section{Is it just our surrogate? Every deep model as the attacker}
@@ -393,10 +393,10 @@ Each table below gives the share of same-person pairs the \textbf{target} (colum
 \toprule
 \rowcolor{navy}\textcolor{white}{\textbf{Attacker $\downarrow$ \textperiodcentered{} target $\to$}} & \textcolor{white}{\textbf{surrogate}} & \textcolor{white}{\textbf{casia}} & \textcolor{white}{\textbf{vggface2}} & \textcolor{white}{\textbf{arcface}} & \textcolor{white}{\textbf{lbph}} & \textcolor{white}{\textbf{SSIM}} \\
 \midrule
-surrogate & \cellcolor{hl}84.8\% $\pm$ 2.9\% & 2.6\% $\pm$ 1.7\% & 1.0\% $\pm$ 0.8\% & 0.3\% $\pm$ 0.4\% & 40.4\% $\pm$ 2.1\% & 0.987 \\
-\rowcolor{zebra}casia & 6.1\% $\pm$ 2.6\% & \cellcolor{hl}38.8\% $\pm$ 3.9\% & 1.5\% $\pm$ 0.9\% & 0.3\% $\pm$ 0.4\% & 41.5\% $\pm$ 2.0\% & 0.986 \\
-vggface2 & 5.6\% $\pm$ 3.1\% & 3.8\% $\pm$ 1.6\% & \cellcolor{hl}27.2\% $\pm$ 4.1\% & 0.4\% $\pm$ 0.5\% & 41.8\% $\pm$ 2.0\% & 0.986 \\
-\rowcolor{zebra}arcface & 4.0\% $\pm$ 2.3\% & 2.8\% $\pm$ 1.3\% & 1.1\% $\pm$ 0.7\% & \cellcolor{hl}11.2\% $\pm$ 2.2\% & 42.1\% $\pm$ 1.8\% & 0.986 \\
+surrogate & \cellcolor{hl}75.1\% $\pm$ 3.1\% & 2.6\% $\pm$ 1.4\% & 1.0\% $\pm$ 0.9\% & 0.3\% $\pm$ 0.5\% & 40.4\% $\pm$ 2.2\% & 0.986 \\
+\rowcolor{zebra}casia & 5.1\% $\pm$ 2.3\% & \cellcolor{hl}38.8\% $\pm$ 3.9\% & 1.5\% $\pm$ 0.9\% & 0.3\% $\pm$ 0.4\% & 41.5\% $\pm$ 2.0\% & 0.986 \\
+vggface2 & 4.5\% $\pm$ 1.9\% & 3.8\% $\pm$ 1.6\% & \cellcolor{hl}27.2\% $\pm$ 4.1\% & 0.4\% $\pm$ 0.5\% & 41.8\% $\pm$ 2.0\% & 0.986 \\
+\rowcolor{zebra}arcface & 3.5\% $\pm$ 1.8\% & 2.8\% $\pm$ 1.3\% & 1.1\% $\pm$ 0.7\% & \cellcolor{hl}11.2\% $\pm$ 2.2\% & 42.1\% $\pm$ 1.8\% & 0.986 \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -409,10 +409,10 @@ vggface2 & 5.6\% $\pm$ 3.1\% & 3.8\% $\pm$ 1.6\% & \cellcolor{hl}27.2\% $\pm$ 4.
 \toprule
 \rowcolor{navy}\textcolor{white}{\textbf{Attacker $\downarrow$ \textperiodcentered{} target $\to$}} & \textcolor{white}{\textbf{surrogate}} & \textcolor{white}{\textbf{casia}} & \textcolor{white}{\textbf{vggface2}} & \textcolor{white}{\textbf{arcface}} & \textcolor{white}{\textbf{lbph}} & \textcolor{white}{\textbf{SSIM}} \\
 \midrule
-surrogate & \cellcolor{hl}100.0\% $\pm$ 0.0\% & 4.8\% $\pm$ 2.0\% & 1.4\% $\pm$ 0.9\% & 0.4\% $\pm$ 0.5\% & 39.0\% $\pm$ 2.2\% & 0.955 \\
-\rowcolor{zebra}casia & 30.9\% $\pm$ 4.6\% & \cellcolor{hl}98.9\% $\pm$ 0.6\% & 6.4\% $\pm$ 1.8\% & 0.4\% $\pm$ 0.5\% & 40.3\% $\pm$ 2.1\% & 0.953 \\
-vggface2 & 23.1\% $\pm$ 5.2\% & 22.7\% $\pm$ 3.2\% & \cellcolor{hl}95.3\% $\pm$ 1.5\% & 0.5\% $\pm$ 0.4\% & 40.1\% $\pm$ 2.1\% & 0.954 \\
-\rowcolor{zebra}arcface & 9.9\% $\pm$ 3.4\% & 5.5\% $\pm$ 1.3\% & 2.1\% $\pm$ 1.4\% & \cellcolor{hl}95.9\% $\pm$ 1.5\% & 41.5\% $\pm$ 2.1\% & 0.953 \\
+surrogate & \cellcolor{hl}99.9\% $\pm$ 0.1\% & 6.3\% $\pm$ 2.0\% & 1.7\% $\pm$ 1.0\% & 0.4\% $\pm$ 0.5\% & 39.0\% $\pm$ 1.9\% & 0.955 \\
+\rowcolor{zebra}casia & 27.1\% $\pm$ 3.0\% & \cellcolor{hl}98.9\% $\pm$ 0.6\% & 6.4\% $\pm$ 1.8\% & 0.4\% $\pm$ 0.5\% & 40.3\% $\pm$ 2.1\% & 0.953 \\
+vggface2 & 19.4\% $\pm$ 3.0\% & 22.7\% $\pm$ 3.2\% & \cellcolor{hl}95.3\% $\pm$ 1.5\% & 0.5\% $\pm$ 0.4\% & 40.1\% $\pm$ 2.1\% & 0.954 \\
+\rowcolor{zebra}arcface & 7.8\% $\pm$ 1.8\% & 5.5\% $\pm$ 1.3\% & 2.1\% $\pm$ 1.4\% & \cellcolor{hl}95.9\% $\pm$ 1.5\% & 41.5\% $\pm$ 2.1\% & 0.953 \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -425,10 +425,10 @@ vggface2 & 23.1\% $\pm$ 5.2\% & 22.7\% $\pm$ 3.2\% & \cellcolor{hl}95.3\% $\pm$ 
 \toprule
 \rowcolor{navy}\textcolor{white}{\textbf{Attacker $\downarrow$ \textperiodcentered{} target $\to$}} & \textcolor{white}{\textbf{surrogate}} & \textcolor{white}{\textbf{casia}} & \textcolor{white}{\textbf{vggface2}} & \textcolor{white}{\textbf{arcface}} & \textcolor{white}{\textbf{lbph}} & \textcolor{white}{\textbf{SSIM}} \\
 \midrule
-surrogate & \cellcolor{hl}100.0\% $\pm$ 0.0\% & 16.2\% $\pm$ 2.6\% & 3.3\% $\pm$ 1.6\% & 0.5\% $\pm$ 0.5\% & 44.5\% $\pm$ 2.8\% & 0.860 \\
-\rowcolor{zebra}casia & 84.3\% $\pm$ 4.0\% & \cellcolor{hl}100.0\% $\pm$ 0.0\% & 32.0\% $\pm$ 4.4\% & 1.3\% $\pm$ 0.7\% & 45.6\% $\pm$ 2.5\% & 0.856 \\
-vggface2 & 76.5\% $\pm$ 4.2\% & 82.2\% $\pm$ 3.2\% & \cellcolor{hl}100.0\% $\pm$ 0.0\% & 3.7\% $\pm$ 1.2\% & 42.6\% $\pm$ 2.2\% & 0.857 \\
-\rowcolor{zebra}arcface & 29.6\% $\pm$ 5.1\% & 16.2\% $\pm$ 2.6\% & 6.2\% $\pm$ 2.5\% & \cellcolor{hl}100.0\% $\pm$ 0.0\% & 46.4\% $\pm$ 2.6\% & 0.856 \\
+surrogate & \cellcolor{hl}100.0\% $\pm$ 0.0\% & 20.6\% $\pm$ 2.9\% & 3.5\% $\pm$ 1.6\% & 0.5\% $\pm$ 0.5\% & 44.9\% $\pm$ 2.3\% & 0.860 \\
+\rowcolor{zebra}casia & 81.2\% $\pm$ 3.1\% & \cellcolor{hl}100.0\% $\pm$ 0.0\% & 32.0\% $\pm$ 4.4\% & 1.3\% $\pm$ 0.7\% & 45.6\% $\pm$ 2.5\% & 0.856 \\
+vggface2 & 72.0\% $\pm$ 3.4\% & 82.2\% $\pm$ 3.2\% & \cellcolor{hl}100.0\% $\pm$ 0.0\% & 3.7\% $\pm$ 1.2\% & 42.6\% $\pm$ 2.2\% & 0.857 \\
+\rowcolor{zebra}arcface & 24.1\% $\pm$ 3.2\% & 16.3\% $\pm$ 2.5\% & 6.2\% $\pm$ 2.5\% & \cellcolor{hl}100.0\% $\pm$ 0.0\% & 46.5\% $\pm$ 2.5\% & 0.856 \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -441,10 +441,10 @@ vggface2 & 76.5\% $\pm$ 4.2\% & 82.2\% $\pm$ 3.2\% & \cellcolor{hl}100.0\% $\pm$
 \toprule
 \rowcolor{navy}\textcolor{white}{\textbf{Attacker $\downarrow$ \textperiodcentered{} target $\to$}} & \textcolor{white}{\textbf{surrogate}} & \textcolor{white}{\textbf{casia}} & \textcolor{white}{\textbf{vggface2}} & \textcolor{white}{\textbf{arcface}} & \textcolor{white}{\textbf{lbph}} & \textcolor{white}{\textbf{SSIM}} \\
 \midrule
-surrogate & \cellcolor{hl}100.0\% $\pm$ 0.0\% & 51.2\% $\pm$ 4.1\% & 12.0\% $\pm$ 2.6\% & 0.9\% $\pm$ 0.7\% & 65.4\% $\pm$ 2.1\% & 0.660 \\
-\rowcolor{zebra}casia & 97.9\% $\pm$ 1.0\% & \cellcolor{hl}100.0\% $\pm$ 0.0\% & 75.5\% $\pm$ 1.8\% & 7.3\% $\pm$ 1.3\% & 65.5\% $\pm$ 2.6\% & 0.656 \\
-vggface2 & 97.3\% $\pm$ 1.1\% & 98.7\% $\pm$ 1.0\% & \cellcolor{hl}100.0\% $\pm$ 0.0\% & 18.8\% $\pm$ 3.3\% & 60.1\% $\pm$ 2.7\% & 0.657 \\
-\rowcolor{zebra}arcface & 61.9\% $\pm$ 6.4\% & 45.9\% $\pm$ 4.1\% & 21.4\% $\pm$ 3.8\% & \cellcolor{hl}100.0\% $\pm$ 0.0\% & 65.5\% $\pm$ 2.3\% & 0.655 \\
+surrogate & \cellcolor{hl}100.0\% $\pm$ 0.0\% & 60.7\% $\pm$ 4.0\% & 14.6\% $\pm$ 2.3\% & 1.0\% $\pm$ 0.7\% & 65.6\% $\pm$ 2.0\% & 0.659 \\
+\rowcolor{zebra}casia & 97.7\% $\pm$ 1.1\% & \cellcolor{hl}100.0\% $\pm$ 0.0\% & 75.5\% $\pm$ 1.8\% & 7.3\% $\pm$ 1.3\% & 65.5\% $\pm$ 2.6\% & 0.656 \\
+vggface2 & 96.7\% $\pm$ 1.1\% & 98.7\% $\pm$ 1.0\% & \cellcolor{hl}100.0\% $\pm$ 0.0\% & 18.8\% $\pm$ 3.3\% & 60.1\% $\pm$ 2.7\% & 0.657 \\
+\rowcolor{zebra}arcface & 55.3\% $\pm$ 5.4\% & 45.9\% $\pm$ 4.1\% & 21.4\% $\pm$ 3.8\% & \cellcolor{hl}100.0\% $\pm$ 0.0\% & 65.5\% $\pm$ 2.3\% & 0.655 \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -457,10 +457,10 @@ vggface2 & 97.3\% $\pm$ 1.1\% & 98.7\% $\pm$ 1.0\% & \cellcolor{hl}100.0\% $\pm$
 \toprule
 \rowcolor{navy}\textcolor{white}{\textbf{Attacker $\downarrow$ \textperiodcentered{} target $\to$}} & \textcolor{white}{\textbf{surrogate}} & \textcolor{white}{\textbf{casia}} & \textcolor{white}{\textbf{vggface2}} & \textcolor{white}{\textbf{arcface}} & \textcolor{white}{\textbf{lbph}} & \textcolor{white}{\textbf{SSIM}} \\
 \midrule
-surrogate & \cellcolor{hl}100.0\% $\pm$ 0.0\% & 12.3\% $\pm$ 2.8\% & 2.9\% $\pm$ 1.5\% & 0.5\% $\pm$ 0.5\% & 35.7\% $\pm$ 2.2\% & 0.928 \\
-\rowcolor{zebra}casia & 76.8\% $\pm$ 5.1\% & \cellcolor{hl}100.0\% $\pm$ 0.0\% & 23.3\% $\pm$ 3.1\% & 0.9\% $\pm$ 0.9\% & 38.7\% $\pm$ 1.9\% & 0.923 \\
-vggface2 & 71.8\% $\pm$ 4.6\% & 74.7\% $\pm$ 3.3\% & \cellcolor{hl}100.0\% $\pm$ 0.0\% & 2.3\% $\pm$ 0.9\% & 36.1\% $\pm$ 2.0\% & 0.923 \\
-\rowcolor{zebra}arcface & 25.0\% $\pm$ 4.6\% & 13.7\% $\pm$ 2.4\% & 5.3\% $\pm$ 2.0\% & \cellcolor{hl}99.9\% $\pm$ 0.1\% & 37.0\% $\pm$ 2.4\% & 0.923 \\
+surrogate & \cellcolor{hl}100.0\% $\pm$ 0.0\% & 15.1\% $\pm$ 2.6\% & 3.0\% $\pm$ 1.1\% & 0.4\% $\pm$ 0.5\% & 36.8\% $\pm$ 2.3\% & 0.928 \\
+\rowcolor{zebra}casia & 72.4\% $\pm$ 4.1\% & \cellcolor{hl}100.0\% $\pm$ 0.0\% & 23.3\% $\pm$ 3.1\% & 0.9\% $\pm$ 0.9\% & 38.7\% $\pm$ 1.9\% & 0.923 \\
+vggface2 & 66.8\% $\pm$ 4.3\% & 74.7\% $\pm$ 3.3\% & \cellcolor{hl}100.0\% $\pm$ 0.0\% & 2.3\% $\pm$ 0.9\% & 36.1\% $\pm$ 2.0\% & 0.923 \\
+\rowcolor{zebra}arcface & 21.2\% $\pm$ 2.7\% & 13.8\% $\pm$ 2.4\% & 5.3\% $\pm$ 2.0\% & \cellcolor{hl}99.9\% $\pm$ 0.1\% & 37.0\% $\pm$ 2.4\% & 0.923 \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -473,38 +473,38 @@ vggface2 & 71.8\% $\pm$ 4.6\% & 74.7\% $\pm$ 3.3\% & \cellcolor{hl}100.0\% $\pm$
 
 \needspace{6\baselineskip}\subsection{What changes}
 
-\textbf{Our surrogate is the weakest attacker.} At $\varepsilon$ = 8/255 its edits make casia lose 16.2\% and vggface2 3.3\%. Edits built against vggface2 make casia lose 82.2\%; edits built against casia make vggface2 lose 32.0\%. So the low transfer in Section 6 is partly a property of our surrogate, and ``edits barely transfer'' was too strong as a general statement.
+\textbf{Our surrogate is the weakest attacker.} At $\varepsilon$ = 8/255 its edits make casia lose 20.6\% and vggface2 3.5\%. Edits built against vggface2 make casia lose 82.2\%; edits built against casia make vggface2 lose 32.0\%. So the low transfer in Section 6 is partly a property of our surrogate, and ``edits barely transfer'' was too strong as a general statement.
 
 
-\textbf{But it is not a broken model; it is an easy target.} Edits from casia and vggface2 make the surrogate lose 84.3\% and 76.5\% of pairs at $\varepsilon$ = 8/255, and 30.9\% and 23.1\% at $\varepsilon$ = 4/255. It is fragile, and its own gradients point in directions the other models do not share.
+\textbf{But it is not a broken model; it is an easy target.} Edits from casia and vggface2 make the surrogate lose 81.2\% and 72.0\% of pairs at $\varepsilon$ = 8/255, and 27.1\% and 19.4\% at $\varepsilon$ = 4/255. It is fragile, and its own gradients point in directions the other models do not share.
 
 
-\textbf{Architecture matters more than training data.} The three InceptionResnetV1 models fool each other well even when their training faces differ: vggface2 $\to$ casia is 82.2\% at $\varepsilon$ = 8/255 and 98.7\% at 16/255. ArcFace, the only different architecture, resists every attacker: the best is vggface2 at 18.8\%, and only at a clearly visible $\varepsilon$ = 16/255. In the other direction, ArcFace's own edits reach the InceptionResnetV1 models only moderately (61.9\% surrogate, 45.9\% casia, 21.4\% vggface2 at $\varepsilon$ = 16/255).
+\textbf{Architecture matters more than training data.} The three InceptionResnetV1 models fool each other well even when their training faces differ: vggface2 $\to$ casia is 82.2\% at $\varepsilon$ = 8/255 and 98.7\% at 16/255. ArcFace, the only different architecture, resists every attacker: the best is vggface2 at 18.8\%, and only at a clearly visible $\varepsilon$ = 16/255. In the other direction, ArcFace's own edits reach the InceptionResnetV1 models only moderately (55.3\% surrogate, 45.9\% casia, 21.4\% vggface2 at $\varepsilon$ = 16/255).
 
 
 \textbf{Transfer is lopsided.} vggface2 $\to$ casia (82.2\% at $\varepsilon$ = 8/255) is much stronger than casia $\to$ vggface2 (32.0\%). The model trained on the larger, more varied VGGFace2 data is both the strongest attacker and the hardest InceptionResnetV1 model to fool.
 
 
-\textbf{Invisible edits still transfer only partially.} At $\varepsilon$ = 4/255 (SSIM about 0.96) the strongest transfer between any two different deep models is casia $\to$ surrogate at 30.9\%; at $\varepsilon$ = 2/255 nothing transfers above 6.1\%. JPEG after editing reduces transfer slightly (e.g. vggface2 $\to$ casia 82.2\% $\to$ 74.7\% at $\varepsilon$ = 8/255).
+\textbf{Invisible edits still transfer only partially.} At $\varepsilon$ = 4/255 (SSIM about 0.95) the strongest transfer between any two different deep models is casia $\to$ surrogate at 27.1\%; at $\varepsilon$ = 2/255 nothing transfers above 5.1\%. JPEG after editing reduces transfer slightly (e.g. vggface2 $\to$ casia 82.2\% $\to$ 74.7\% at $\varepsilon$ = 8/255).
 
 
-\textbf{LBPH} sits at 42.6\%--46.4\% at $\varepsilon$ = 8/255 whichever model built the edit, which supports treating it as noise-sensitive rather than fooled (Section 10).
+\textbf{LBPH} sits at 42.6\%--46.5\% at $\varepsilon$ = 8/255 whichever model built the edit, which supports treating it as noise-sensitive rather than fooled (Section 10).
 
 
-\textbf{Why might our surrogate be a weak attacker?} These are untested hypotheses: (1) \emph{overfitting}: training accuracy reached 97.4\% while LFW accuracy plateaued, and we used the final epoch rather than the best; (2) \emph{crop geometry}: the surrogate aligns faces by landmarks, while casia and vggface2 use a box crop, so edits shaped through one geometry may carry over worse to the other (ArcFace, which also uses landmark alignment, transfers better to the surrogate, 29.6\%, than to casia, 16.2\%, at $\varepsilon$ = 8/255); (3) \emph{training budget}: 30 epochs on CASIA alone, much less than the pretrained models received.
+\textbf{Why might our surrogate be a weak attacker?} These are untested hypotheses: (1) \emph{overfitting}: training accuracy reached 97.6\% while LFW accuracy plateaued, although we kept the epoch that was best on held-out identities; (2) \emph{crop geometry}: the surrogate aligns faces by landmarks, while casia and vggface2 use a box crop, so edits shaped through one geometry may carry over worse to the other (ArcFace, which also uses landmark alignment, transfers better to the surrogate, 24.1\%, than to casia, 16.3\%, at $\varepsilon$ = 8/255); (3) \emph{training budget}: 30 epochs on CASIA alone, much less than the pretrained models received.
 
 
 \clearpage
 
 \needspace{6\baselineskip}\subsection{What the edits look like}
 
-To make the tables concrete, we picked 3 same-person pairs (one from each of three different folds, chosen at random among pairs that all four deep models match before editing): Vanessa Incontrada, Vanessa Williams, Doris Schroeder. For each pair we edited photo \emph{a} with PGD against each attacker at $\varepsilon$ = 0, 2, 4, 8 and 16/255, with exactly the sweep's settings (20 steps, random start, seed 0, rounded to 8-bit), and scored every edited photo on all five models with each model's fold threshold. GPU computation is not bit-for-bit reproducible even with a fixed seed, so re-running can flip a tag for a model sitting right at its threshold (3 of the 300 tags changed between two runs); the overall pattern does not change.
+To make the tables concrete, we picked 3 same-person pairs (one from each of three different folds, chosen at random among pairs that all four deep models match before editing): Vanessa Incontrada, Kiki Vandeweghe, Doris Schroeder. For each pair we edited photo \emph{a} with PGD against each attacker at $\varepsilon$ = 0, 2, 4, 8 and 16/255, with exactly the sweep's settings (20 steps, random start, seed 0, rounded to 8-bit), and scored every edited photo on all five models with each model's fold threshold. GPU computation is not bit-for-bit reproducible even with a fixed seed, so re-running can flip a tag for a model sitting right at its threshold (3 of the 300 tags changed between two runs); the overall pattern does not change.
 
 
 \textbf{How to read the grids.} Rows are attackers, columns are budgets; the first column is the photo \emph{b} the edited photo is compared against. Under each image are five tags, one per target model: \textbf{S} surrogate, \textbf{C} casia, \textbf{V} vggface2, \textbf{A} arcface, \textbf{L} lbph. A \textcolor{tagred}{\textbf{red}} tag means that model no longer matches the pair (the edit fooled it); grey means it still recognises the person. The SSIM between the edited and original photo is printed underneath. Images show the central 190$\times$190 pixels of the 250$\times$250 photo. Examples were chosen so that all four deep models match the pair before editing; LBPH, with its 67\% clean accuracy, already misses two of the three pairs, so its L tag is red even at $\varepsilon$ = 0.
 
 
-\textbf{What they show.} The single photos follow the same pattern as the tables. In the first example, our surrogate's edit fools only the surrogate up to $\varepsilon$ = 8/255 (fooled: surrogate), while the vggface2 edit at the same budget fools surrogate, casia, vggface2 and the casia edit fools surrogate, casia, vggface2. ArcFace's edit fools only ArcFace until $\varepsilon$ = 16/255 (surrogate, casia, vggface2, arcface, lbph). At 2--4/255 the edits are hard to see; at 16/255 a grainy texture is clearly visible, especially on skin.
+\textbf{What they show.} The single photos follow the same pattern as the tables. In the first example, our surrogate's edit fools only the surrogate up to $\varepsilon$ = 8/255 (fooled: surrogate), while the vggface2 edit at the same budget fools casia, vggface2 and the casia edit fools casia, vggface2. ArcFace's edit fools only ArcFace until $\varepsilon$ = 16/255 (casia, arcface). At 2--4/255 the edits are hard to see; at 16/255 a grainy texture is clearly visible, especially on skin.
 
 
 \begin{figure}[H]\centering
@@ -516,7 +516,7 @@ To make the tables concrete, we picked 3 same-person pairs (one from each of thr
 
 \begin{figure}[H]\centering
 \includegraphics[width=17.4cm]{figures/example_1.jpg}
-\caption{Vanessa Williams: photo a edited against each attacker (rows) at each budget (columns). Tags: models fooled (red) or still matching (grey); S surrogate, C casia, V vggface2, A arcface, L lbph.}
+\caption{Kiki Vandeweghe: photo a edited against each attacker (rows) at each budget (columns). Tags: models fooled (red) or still matching (grey); S surrogate, C casia, V vggface2, A arcface, L lbph.}
 \end{figure}
 
 \clearpage
@@ -546,7 +546,7 @@ The figure below shows only the change each attacker made to the first example (
 
 \needspace{8\baselineskip}\section{A note on LBPH (the non-deep model)}
 
-LBPH needs careful interpretation. Its clean accuracy is only 67.0\%, so with its best threshold it already fails to match 47.2\% of same-person pairs before any edit. Its numbers also move in the opposite direction from what transfer would predict: small PGD edits slightly \emph{lower} its unmatched share (47.2\% $\to$ 39.0\% at $\varepsilon$ = 4/255), random noise affects it far more than PGD at $\varepsilon$ = 16/255 (90.1\% vs 65.4\%), and blur at $\sigma$ = 3 breaks it almost completely (99.6\%).
+LBPH needs careful interpretation. Its clean accuracy is only 67.0\%, so with its best threshold it already fails to match 47.2\% of same-person pairs before any edit. Its numbers also move in the opposite direction from what transfer would predict: small PGD edits slightly \emph{lower} its unmatched share (47.2\% $\to$ 39.0\% at $\varepsilon$ = 4/255), random noise affects it far more than PGD at $\varepsilon$ = 16/255 (90.1\% vs 65.6\%), and blur at $\sigma$ = 3 breaks it almost completely (99.6\%).
 
 
 LBPH describes faces by fine local texture, so any change to pixel-level texture moves its distances, whether or not the change is targeted. Its numbers therefore measure sensitivity to pixel changes in general, not transfer of the edit, and it should be reported as a non-deep baseline rather than as evidence that the edit transfers.
@@ -557,10 +557,10 @@ LBPH describes faces by fine local texture, so any change to pixel-level texture
 1. \textbf{Edits built against our surrogate transfer poorly.} A nearly invisible edit ($\varepsilon$ = 4/255) that fully defeats the surrogate leaves every other deep model recognising about 95\% or more of the same-person pairs.
 
 
-2. \textbf{The results are stable.} Across three random seeds no result's standard deviation exceeds 0.69 percentage points.
+2. \textbf{The results are stable.} Across three random seeds no result's standard deviation exceeds 0.75 percentage points.
 
 
-3. \textbf{Transfer depends strongly on which model the edit is built against.} Our surrogate is the weakest of four attackers: edits built against vggface2 make casia lose 82.2\% of pairs at $\varepsilon$ = 8/255, against 16.2\% for our surrogate.
+3. \textbf{Transfer depends strongly on which model the edit is built against.} Our surrogate is the weakest of four attackers: edits built against vggface2 make casia lose 82.2\% of pairs at $\varepsilon$ = 8/255, against 20.6\% for our surrogate.
 
 
 4. \textbf{Architecture matters more than training data.} Models sharing the InceptionResnetV1 architecture fool each other well even with different training faces, while ArcFace resists every attacker (at most 18.8\%, and only at a visible $\varepsilon$ = 16/255). The surrogate-only result that seemed to favour training data (Section 6) does not generalise.
@@ -569,7 +569,7 @@ LBPH describes faces by fine local texture, so any change to pixel-level texture
 5. \textbf{The effect comes from the optimisation.} Random noise of the same size, JPEG compression and mild blur do almost nothing to the deep models.
 
 
-6. \textbf{Implication for privacy tools.} Protection built against one recognition system is unreliable against an unknown one: it depends on the tool's choice of model, it is much weaker against a different architecture, and at a nearly invisible budget ($\varepsilon$ = 4/255) even the best pairing transfers to only 30.9\% of pairs.
+6. \textbf{Implication for privacy tools.} Protection built against one recognition system is unreliable against an unknown one: it depends on the tool's choice of model, it is much weaker against a different architecture, and at a nearly invisible budget ($\varepsilon$ = 4/255) even the best pairing transfers to only 27.1\% of pairs.
 
 
 \needspace{8\baselineskip}\section{Limitations and next steps}
@@ -577,8 +577,8 @@ LBPH describes faces by fine local texture, so any change to pixel-level texture
 \begin{itemize}
   \item  One editing method (PGD) and one budget sweep. Attacking an ensemble of models at once, the standard way to make edits transfer better, was not tried.
   \item  Seeds 1 and 2 were run with the surrogate as attacker only; the other attackers use seed 0. Seed spread for the surrogate is under 0.7 points, so this is unlikely to matter.
-  \item  The saved surrogate is the final epoch (98.12\% clean LFW), not the best epoch (98.32\%). Why it is a weak attacker (overfitting, crop geometry, training budget) is untested; keeping the best checkpoint, or retraining with a box crop, would test two of those.
-  \item  The original seed-0 sweep scored ArcFace with onnxruntime; all later runs use the PyTorch conversion. Both give identical clean accuracy, and ArcFace's numbers agree across the three seeds to within 0.13 points.
+  \item  The saved surrogate is the best epoch on 500 held-out CASIA identities (98.28\% clean LFW). Why it is a weak attacker (overfitting, crop geometry, training budget) is untested; retraining with a box crop would test one of those.
+  \item  The original seed-0 sweep scored ArcFace with onnxruntime; all later runs use the PyTorch conversion. Both give identical clean accuracy, and ArcFace's numbers agree across the three seeds to within 0.06 points.
   \item  Face landmarks come from the clean photo and are reused for its edited versions; a real system would re-detect the face, which large edits could shift.
   \item  The proposal's optional check of whether protection holds equally across demographic groups (LFW is roughly 77.5\% male and 83.5\% White) has not been done yet.
   \item  LBPH's low clean accuracy limits what its numbers can show (Section 10).

@@ -11,6 +11,7 @@ from pathlib import Path
 import numpy as np
 import torch
 import torch.nn.functional as F
+import torchvision
 from facenet_pytorch import InceptionResnetV1
 from skimage.feature import local_binary_pattern
 
@@ -18,7 +19,11 @@ from facetransfer.align import ARCFACE_TEMPLATE, CASIA_MTCNN_TEMPLATE, box_affin
 from facetransfer.data import download
 
 MODEL_NAMES = ("surrogate", "vggface2", "casia", "arcface", "lbph")
+# Opt-in models, not in the default sweep: the ResNet-50 surrogate (architecture control).
+EXTRA_MODELS = ("surrogate_r50",)
 SURROGATE_SIZE = 160
+# Surrogate architectures and the model name (= checkpoint runs/<name>.pt) each one trains.
+SURROGATE_ARCHS = {"inception": "surrogate", "resnet50": "surrogate_r50"}
 
 # Published LFW accuracy, used by `ft validate` to catch alignment/preprocessing mistakes.
 PUBLISHED_ACCURACY = {"vggface2": 0.9965, "casia": 0.9905, "arcface": 0.9983}
@@ -119,17 +124,42 @@ def arcface_onnx(weights_dir: Path) -> Path:
     return onnx
 
 
+class ResNetFace(torch.nn.Module):
+    """torchvision ResNet-50 with InceptionResnetV1's embedding head (dropout, 512-d linear + BN, logits), so the
+    ResNet surrogate differs from the Inception one only in the backbone."""
+
+    def __init__(self, num_classes: int):
+        super().__init__()
+        self.backbone = torchvision.models.resnet50(weights=None)
+        self.backbone.fc = torch.nn.Identity()
+        self.dropout = torch.nn.Dropout(0.6)
+        self.last_linear = torch.nn.Linear(2048, 512, bias=False)
+        self.last_bn = torch.nn.BatchNorm1d(512, eps=0.001, momentum=0.1)
+        self.logits = torch.nn.Linear(512, num_classes)
+        self.classify = True
+
+    def forward(self, x):
+        x = self.last_bn(self.last_linear(self.dropout(self.backbone(x))))
+        return self.logits(x) if self.classify else F.normalize(x, dim=-1)
+
+
+def surrogate_net(arch: str, num_classes: int) -> torch.nn.Module:
+    if arch == "resnet50":
+        return ResNetFace(num_classes)
+    return InceptionResnetV1(classify=True, num_classes=num_classes)
+
+
 def load_surrogate_net(checkpoint: Path, device: str) -> torch.nn.Module:
     ckpt = torch.load(checkpoint, map_location=device)
-    net = InceptionResnetV1(classify=True, num_classes=ckpt["num_classes"])
+    net = surrogate_net(ckpt.get("arch", "inception"), ckpt["num_classes"])
     net.load_state_dict(ckpt["state_dict"])
     return net.to(device)
 
 
 def load_model(name: str, device: str, runs_dir: Path, weights_dir: Path) -> FaceModel:
     match name:
-        case "surrogate":
-            net = load_surrogate_net(runs_dir / "surrogate.pt", device)
+        case "surrogate" | "surrogate_r50":
+            net = load_surrogate_net(runs_dir / f"{name}.pt", device)
             return TorchFaceNet(name, net, SURROGATE_SIZE, surrogate_crop)
         case "vggface2" | "casia":
             net = InceptionResnetV1(pretrained="vggface2" if name == "vggface2" else "casia-webface")
@@ -138,4 +168,4 @@ def load_model(name: str, device: str, runs_dir: Path, weights_dir: Path) -> Fac
             return TorchFaceNet(name, arcface_net(weights_dir, device), 112, landmark_crop(112), std=127.5)
         case "lbph":
             return LBPH()
-    raise ValueError(f"unknown model {name!r}, expected one of {MODEL_NAMES}")
+    raise ValueError(f"unknown model {name!r}, expected one of {MODEL_NAMES + EXTRA_MODELS}")
