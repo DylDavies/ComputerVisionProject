@@ -91,7 +91,7 @@ every model checked against its published figure before any attack.
 
 \section{Related Work}
 Small, targeted input changes can flip the output of a deep network~\cite{szegedy2014}, and gradient-sign
-methods~\cite{fgsm} find them in a single step, but PGD~\cite{madry} finds them more reliably by iterating. Such perturbations often transfer between models
+methods~\cite{fgsm} find them cheaply, but PGD~\cite{madry} finds them more reliably by iterating. Such perturbations often transfer between models
 trained for the same task~\cite{papernot}, which makes black-box attacks practical. Liu \emph{et
 al.}~\cite{liu2017} found that targeted perturbations rarely transfer from one model to another, and that
 optimising against an ensemble of models makes them transfer much more often.
@@ -100,8 +100,7 @@ Face recognition models map an aligned face crop to an embedding and compare emb
 FaceNet~\cite{facenet} trained such embeddings with a triplet loss; ArcFace~\cite{arcface} adds an angular margin to
 a softmax loss. Widely used pretrained models include InceptionResnetV1~\cite{inceptionv4} networks trained on
 VGGFace2~\cite{vggface2} and CASIA-WebFace~\cite{casia}, distributed with facenet-pytorch~\cite{facenetpytorch},
-and InsightFace's~\cite{insightface} ArcFace ResNet-50 trained on WebFace600K, a subset of the WebFace260M
-corpus~\cite{webface260m}. LFW remains
+and InsightFace's~\cite{insightface} ArcFace ResNet-50 trained on WebFace600K. LFW remains
 the standard verification benchmark, although it is too small to train on~\cite{deepid2} and its subjects are
 mostly male and White~\cite{hanjain}.
 
@@ -435,9 +434,6 @@ and clustering,'' in \emph{Proc. IEEE Conf. Comput. Vis. Pattern Recognit. (CVPR
 impact of residual connections on learning,'' in \emph{Proc. AAAI Conf. Artif. Intell.}, 2017, pp. 4278--4284.
 \bibitem{arcface} J.~Deng, J.~Guo, N.~Xue, and S.~Zafeiriou, ``ArcFace: Additive angular margin loss for deep face
 recognition,'' in \emph{Proc. IEEE/CVF Conf. Comput. Vis. Pattern Recognit. (CVPR)}, 2019, pp. 4690--4699.
-\bibitem{webface260m} Z.~Zhu, G.~Huang, J.~Deng, Y.~Ye, J.~Huang, X.~Chen, J.~Zhu, T.~Yang, J.~Lu, D.~Du, and
-J.~Zhou, ``WebFace260M: A benchmark unveiling the power of million-scale deep face recognition,'' in \emph{Proc.
-IEEE/CVF Conf. Comput. Vis. Pattern Recognit. (CVPR)}, 2021.
 \bibitem{lbph} T.~Ahonen, A.~Hadid, and M.~Pietik\"ainen, ``Face description with local binary patterns:
 Application to face recognition,'' \emph{IEEE Trans. Pattern Anal. Mach. Intell.}, vol.~28, no.~12,
 pp. 2037--2041, 2006.
