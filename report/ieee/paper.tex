@@ -27,7 +27,8 @@
 \title{Do Edits That Fool One Face Recognition Model Fool Others? Measuring the Transfer of PGD Perturbations on LFW}
 
 \author{\IEEEauthorblockN{Dylan Davies (2672598), Sudhir Adjodhya (2652330) and Michael Badenhorst (2652150)}
-\IEEEauthorblockA{COMS4036A Computer Vision}}
+\IEEEauthorblockA{COMS4036A Computer Vision\\
+Code: \url{https://github.com/DylDavies/ComputerVisionProject}}}
 
 \maketitle
 
@@ -372,11 +373,20 @@ line is the attacker scored on itself.}
 \end{figure*}
 
 \subsection{What the edits look like}
-Fig.~\ref{fig:example}, at the end of the paper, shows one LFW pair (Vanessa Incontrada) edited by each attacker. At 2--4/255 the edits are hard to
-see; at $16/255$ they add a visible grain, mostly on skin. Fig.~\ref{fig:pert} shows the change alone. The
+Fig.~\ref{fig:example} shows one LFW pair (Vanessa Incontrada) edited by each attacker. At 2--4/255 the edits are hard to
+see; at $16/255$ they add a visible grain, mostly on skin. In the edit alone (edited minus original), the
 pretrained attackers' edits follow the eyes, brows, mouth and outline of the face, while the surrogate's looks like
 texture with little facial structure. Each edit stays inside its attacker's crop; outside it, only PGD's random
 start remains.
+
+\begin{figure}[tb]
+\centering
+\includegraphics[width=0.56\columnwidth]{figures/example_0_split.jpg}
+\caption{Photo $a$ of one pair edited against each attacker at each budget (two rows per attacker), with the
+comparison photo $b$ and the unedited $a$. Tags: models fooled (red) or still matching (grey); S surrogate, C casia,
+V vggface2, A arcface, L lbph.}
+\label{fig:example}
+\end{figure}
 
 \section{Discussion}
 Our first experiment, with only our surrogate as the attacker, suggested that edits transfer mainly to models that
@@ -479,25 +489,5 @@ large learning rates,'' arXiv:1708.07120, 2018.
 \bibitem{hanjain} H.~Han and A.~K. Jain, ``Age, gender and race estimation from unconstrained face images,''
 Michigan State Univ., Tech. Rep. MSU-CSE-14-5, 2014.
 \end{thebibliography}
-
-% The two large example figures go on their own page on their own page at the very end, after the references, so
-% neither breaks into the body text.
-
-\begin{figure*}[p]
-\centering
-\includegraphics[width=0.80\textwidth]{figures/example_0.jpg}
-\caption{Photo $a$ of one pair edited against each attacker (rows) at each budget (columns), with the comparison
-photo $b$ on the left. Tags under each photo: models fooled (red) or still matching (grey); S surrogate, C casia,
-V vggface2, A arcface, L lbph.}
-\label{fig:example}
-\end{figure*}
-
-\begin{figure*}[p]
-\centering
-\includegraphics[width=0.38\textwidth]{figures/perturbation_0.jpg}
-\caption{The edit alone (edited minus original) for the pair in Fig.~\ref{fig:example}, each column scaled by
-$1/\varepsilon$.}
-\label{fig:pert}
-\end{figure*}
 
 \end{document}
