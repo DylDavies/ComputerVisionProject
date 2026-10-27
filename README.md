@@ -6,7 +6,7 @@ also stop matching the pair.
 
 | Model | Role | Differs from surrogate in |
 |---|---|---|
-| `surrogate` | InceptionResnetV1, softmax CE, CASIA-WebFace, trained here | — (only model used to build edits) |
+| `surrogate` | InceptionResnetV1, softmax CE, CASIA-WebFace, trained here | - |
 | `vggface2` | facenet-pytorch InceptionResnetV1 | training faces |
 | `casia` | facenet-pytorch InceptionResnetV1 | nothing but the seed |
 | `arcface` | InsightFace buffalo_l ResNet-50 (WebFace600K), ONNX converted to torch | architecture, objective, faces |
@@ -25,10 +25,24 @@ uv sync
 ## Data
 
 - **LFW + View 2 pairs** and all pretrained weights: downloaded by `uv run ft prepare` (figshare mirror, the UMass host
-  is often down). The six known mislabelled pairs are left in, as the maintainers ask.
-- **CASIA-WebFace** (surrogate training): download a 112x112 ArcFace-aligned JPEG copy (e.g. from Kaggle) and place it
-  as `data/casia/<identity>/<image>.jpg`. It must be aligned with the standard InsightFace 5-point template, which is
-  the geometry the surrogate also sees on LFW.
+  is often down). The published View 2 pairs are used unchanged, with no corrections.
+- **CASIA-WebFace** (surrogate training; only `ft train` needs it, every other command works without it). This is
+  not downloaded automatically. We used the Kaggle copy
+  [`debarghamitraroy/casia-webface`](https://www.kaggle.com/datasets/debarghamitraroy/casia-webface) (3.4 GB; licence
+  listed there as "Database: Open Database, Contents: Database Contents"). Download it from the page (Kaggle login
+  required), or with the
+  [Kaggle CLI](https://github.com/Kaggle/kaggle-api):
+
+  ```bash
+  kaggle datasets download -d debarghamitraroy/casia-webface -p data --unzip
+  ```
+
+  Then arrange it as `data/casia/<identity>/<image>.jpg`, one folder per identity, directly under `data/casia/`
+  (if the archive nests the identity folders one level deeper, move them up). Our copy has 112x112 JPEGs, aligned with
+  the standard InsightFace 5-point template (the geometry the surrogate also sees on LFW), 10,572 identity folders and
+  490,623 images; with the default 500 held-out identities `ft train` should start by printing
+  `465498 images, 10072 identities`, so you can check yours. A differently aligned copy
+  will lower the surrogate's accuracy without raising any error.
 
 ## Pipeline
 
@@ -39,24 +53,6 @@ uv run ft train       # surrogate -> runs/surrogate.pt (prints LFW accuracy each
 uv run ft sweep       # all conditions -> runs/sweep.csv
 uv run ft plot        # runs/figures/*.png
 uv run ft watch       # live training dashboard (run in a second terminal)
-```
-
-## Report
-
-`report/` holds the LaTeX results report. All numbers are filled in from `runs/` by `report/generate.py`
-(edit the text there, not in `main.tex`, or a regeneration will overwrite it):
-
-```bash
-uv run python report/examples.py   # example edit grids -> runs/examples/ (needs the GPU, ~2 min)
-uv run python report/generate.py   # runs/ -> report/main.tex + report/figures/
-cd report && latexmk -pdf main.tex
-```
-
-The IEEE-format paper (`report/ieee/paper.tex`) is generated the same way, from the same `report/results.py`:
-
-```bash
-uv run python report/ieee.py
-cd report/ieee && latexmk -pdf paper.tex
 ```
 
 ### Architecture control (ResNet-50 surrogate)

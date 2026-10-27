@@ -178,9 +178,23 @@ accepts after photo $a$ of each pair is edited, averaged over the ten folds. SSI
 and original photo measures how visible the edit is.
 
 \section{Experimental Setup}
-LFW View~2 holds 6,000 fixed pairs in ten folds. We use the published pairs unchanged, with no corrections of
-our own. The surrogate was trained for 30 epochs on CASIA-WebFace~\cite{casia} (465,498 aligned images
-of 10,072 identities in our copy, after holding out 500 identities for validation) with SGD (Nesterov momentum 0.9, weight decay $5\times10^{-4}$), a one-cycle
+\subsection{Data}
+\emph{LFW}~\cite{lfw} is the test set: 13,233 photos of public figures gathered from news articles on the web. Faces
+were found with a Viola--Jones detector, false detections and photos whose subject could not be named were removed by
+hand, and identities come from the news captions. View~2 gives 6,000 pairs (300 same-person and 300 different-person
+per fold) in ten folds, covering 7,701 distinct photos. We use the published pairs unchanged, with no corrections of
+our own. \emph{CASIA-WebFace}~\cite{casia} trains the surrogate. It was crawled from IMDb, labelled
+semi-automatically from the celebrity pages, checked by hand, and subjects with fewer than 15 images were dropped;
+the published size is 10,575 subjects and 494,414 images. Our copy is a pre-aligned $112\times112$ version with
+490,623 images of 10,572 identities. We hold out 500 identities for validation, leaving 465,498 images of 10,072
+identities for training. The pretrained models were trained on VGGFace2~\cite{vggface2} (3.31 million Google Image
+Search photos of 9,131 subjects, with a separate 500-identity test split) and on WebFace600K; we use their weights
+but none of their images. None of the dataset papers we read describes consent from the people pictured, and we
+found no licence text in them. We obtained CASIA-WebFace from a Kaggle copy whose licence is listed as ``Open
+Database''. We used all data only for this non-commercial study and did not redistribute it.
+
+\subsection{Surrogate training and validation}
+The surrogate was trained for 30 epochs on CASIA-WebFace~\cite{casia} with SGD (Nesterov momentum 0.9, weight decay $5\times10^{-4}$), a one-cycle
 schedule~\cite{onecycle} peaking at a
 learning rate of 0.1, batch size 256, bf16 mixed precision and random horizontal flips. Training took about
 1.5~hours on one RTX~5070~Ti. We kept the epoch (27) with the best verification accuracy on the held-out
@@ -385,14 +399,23 @@ This is discouraging for privacy tools. Whether an edit protects someone depends
 against, and the protection is much weaker against a model with a different architecture. At a nearly invisible
 budget, even the best-matched pair of models transfers to only 27.1\% of pairs.
 
-\section{Limitations}
-We used one attack and did not try ensemble attacks~\cite{liu2017}, which usually transfer better. Only the
-surrogate attacker was repeated over three seeds. Landmarks are detected on the clean photo and reused for its
-edited versions, whereas a deployed system would detect the face again. PGD on the GPU is not bit-for-bit
-reproducible even with a fixed seed; re-running the example edits changed 3 of 300 fooled-or-matched decisions,
-all for models sitting at their threshold. PGD's random start leaves noise outside the attacker's crop, which
-lowers SSIM slightly and equally for every attacker. Finally, we did not check whether protection is equally
-effective across demographic groups, which matters given LFW's skew~\cite{hanjain}.
+\section{Limitations and Future Work}
+The method breaks in several places. Our surrogate is a weak attacker: its edits reach only 20.6\% of \emph{casia}'s
+pairs at $8/255$, against 82.2\% for \emph{vggface2}'s, and ArcFace is barely affected by any attacker below
+$16/255$, so the attack gives little where it matters most. LBPH fails on 47.2\% of same-person pairs before any
+edit, so it cannot show transfer. We used one attack and did not try ensemble attacks~\cite{liu2017}, which usually
+transfer better. Only the surrogate attacker was repeated over three seeds. Landmarks are detected on the clean
+photo and reused for its edited versions, whereas a deployed system would detect the face again. PGD on the GPU is
+not bit-for-bit reproducible even with a fixed seed; re-running the example edits changed 3 of 300
+fooled-or-matched decisions, all for models sitting at their threshold. PGD's random start leaves noise outside the
+attacker's crop, which lowers SSIM slightly and equally for every attacker. We also did not check whether
+protection is equally effective across demographic groups, which matters given LFW's skew~\cite{hanjain}.
+
+Next we would build edits against an ensemble of models~\cite{liu2017} to see whether ArcFace can be reached below
+$16/255$; test architectures beyond InceptionResnetV1 and ResNet-50 to separate architecture from training data
+more cleanly; re-detect landmarks on the edited photo; and measure protection per demographic group on a more
+balanced dataset. We would also test recognisers retrained on edited photos~\cite{radiya}, which this study
+excludes.
 
 \section{Conclusion}
 PGD edits built against a from-scratch face recognition model transfer poorly to models its author never used.
@@ -400,6 +423,10 @@ Changing the attacker shows that this is partly a weakness of our surrogate: edi
 InceptionResnetV1 transfer strongly to other networks with that architecture, even across training sets. A
 different architecture resists edits from every attacker we tried until the edit is clearly visible. A privacy
 edit made once against one model should not be expected to protect against an unknown recogniser.
+
+\section*{Use of AI Tools}
+We used AI tools during this project, mainly for coding assistance, writing assistance, sourcing papers and
+preparing the presentation. The research questions and the general ideas are our own.
 
 
 \FloatBarrier
