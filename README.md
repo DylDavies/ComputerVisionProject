@@ -49,11 +49,31 @@ uv sync
 ```bash
 uv run ft prepare     # LFW, MTCNN boxes/landmarks cached to data/lfw_meta.npz, weights
 uv run ft validate --models vggface2 casia arcface lbph   # clean accuracy vs published: run before any edits
-uv run ft train       # surrogate -> runs/surrogate.pt (prints LFW accuracy each epoch)
+uv run ft train > runs/train.log   # surrogate -> runs/surrogate.pt (~1.5 h on an RTX 5070 Ti); the log feeds `ft watch`
+uv run ft validate --models surrogate vggface2 casia arcface lbph   # rerun with the surrogate: overwrites runs/validate.csv
 uv run ft sweep       # all conditions -> runs/sweep.csv
 uv run ft plot        # runs/figures/*.png
 uv run ft watch       # live training dashboard (run in a second terminal)
 ```
+
+### Additional runs
+
+Run the pipeline above first. `runs/sweep.csv` is the seed-0 run with the surrogate as attacker. Two further sets of
+sweeps give the remaining numbers (GPU PGD is not bit-for-bit reproducible, so expect small differences).
+
+```bash
+# Seed stability: two more seeds of the surrogate sweep
+uv run ft sweep --seed 1 --out runs/sweeps/surrogate_seed1.csv
+uv run ft sweep --seed 2 --out runs/sweeps/surrogate_seed2.csv
+
+# Attacker x target matrix: every other differentiable model as the attacker, scored on all five models
+for a in casia vggface2 arcface; do
+    uv run ft sweep --attacker $a --models surrogate casia vggface2 arcface lbph --conditions pgd \
+        --out runs/sweeps/attacker_$a.csv
+done
+```
+
+These take the longest of anything after training, so run them when the GPU is free.
 
 ### Architecture control (ResNet-50 surrogate)
 
